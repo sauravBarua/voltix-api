@@ -1,9 +1,9 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { hasAtLeastOneField, slugSchema } from '../../common/schemas';
+import { slugSchema } from '../../common/schemas';
 import { variantResponseSchema } from '../variants/variants.dto';
 
-const createProductSchema = z.object({
+export const createProductSchema = z.object({
   name: z.string().trim().min(2).max(200),
   slug: slugSchema.optional(),
   description: z.string().max(5000).optional(),
@@ -14,9 +14,10 @@ const createProductSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-const updateProductSchema = createProductSchema
-  .partial()
-  .refine(hasAtLeastOneField, 'At least one field is required');
+export const updateProductSchema = createProductSchema.partial().extend({
+  removeImageIds: z.array(z.uuid()).max(20).optional().describe('Product images to delete'),
+  primaryImageId: z.uuid().optional().describe('Existing image to make primary'),
+});
 
 const listProductsSchema = z
   .object({
@@ -86,7 +87,13 @@ const productList = z.object({
 });
 
 export class CreateProductDto extends createZodDto(createProductSchema) {}
+/** Plain types (not ZodDto classes) so the global ZodValidationPipe skips the raw multipart `data` string. */
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export class UpdateProductDto extends createZodDto(updateProductSchema) {}
 export class ListProductsDto extends createZodDto(listProductsSchema) {}
 export class ProductDetailDto extends createZodDto(productDetail) {}
 export class ProductListDto extends createZodDto(productList) {}
+export class ProductImageParamDto extends createZodDto(
+  z.object({ id: z.uuid(), imageId: z.uuid() }),
+) {}

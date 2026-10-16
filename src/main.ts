@@ -3,12 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
+import { configureApp } from './app.setup';
 import type { Env } from './config/env';
 
 async function bootstrap() {
   // rawBody: true is needed for Stripe webhook signature verification (Phase 10)
   const app = await NestFactory.create(AppModule, { rawBody: true });
-  app.enableShutdownHooks();
+  configureApp(app);
 
   const config = app.get<ConfigService<Env, true>>(ConfigService);
 

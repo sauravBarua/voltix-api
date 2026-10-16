@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { API_PREFIX, configureApp } from '../src/app.setup';
 
 type ListBody = {
   items: { slug: string; brand: { slug: string }; priceFromMinor: number }[];
@@ -17,6 +18,7 @@ describe('Catalog (e2e)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 
@@ -24,7 +26,17 @@ describe('Catalog (e2e)', () => {
     await app.close();
   });
 
-  const http = () => request(app.getHttpServer());
+  // All routes live under /api/v1
+  const http = () => {
+    const server = app.getHttpServer();
+    const url = (path: string) => `/${API_PREFIX}${path}`;
+    return {
+      get: (p: string) => request(server).get(url(p)),
+      post: (p: string) => request(server).post(url(p)),
+      patch: (p: string) => request(server).patch(url(p)),
+      delete: (p: string) => request(server).delete(url(p)),
+    };
+  };
   const list = async (query: Record<string, string>) =>
     (await http().get('/products').query(query).expect(200)).body as ListBody;
 
@@ -99,12 +111,15 @@ describe('Catalog (e2e)', () => {
       const brands = (await http().get('/brands').expect(200)).body as Ref[];
       const res = await http()
         .post('/products')
-        .send({
-          name: `Invalid Laptop ${suffix}`,
-          brandId: brands.find((b) => b.slug === 'dell')?.id,
-          categoryId: categories.find((c) => c.slug === 'laptops')?.id,
-          specs: { cpu: 'Intel' },
-        })
+        .field(
+          'data',
+          JSON.stringify({
+            name: `Invalid Laptop ${suffix}`,
+            brandId: brands.find((b) => b.slug === 'dell')?.id,
+            categoryId: categories.find((c) => c.slug === 'laptops')?.id,
+            specs: { cpu: 'Intel' },
+          }),
+        )
         .expect(400);
       expect((res.body as { errors: unknown[] }).errors.length).toBeGreaterThan(0);
     });
@@ -112,7 +127,10 @@ describe('Catalog (e2e)', () => {
     it('returns 404 when adding a variant to an unknown product', async () => {
       await http()
         .post('/products/0192f5c4-0000-7000-8000-000000000000/variants')
-        .send({ sku: `TEST-${suffix.toUpperCase()}`, name: 'x', priceMinor: 100 })
+        .field(
+          'data',
+          JSON.stringify({ sku: `TEST-${suffix.toUpperCase()}`, name: 'x', priceMinor: 100 }),
+        )
         .expect(404);
     });
   });

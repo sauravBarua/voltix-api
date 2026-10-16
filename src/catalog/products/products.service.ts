@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { resolveSlug } from '../../common/utils/slugify';
+import { MAX_IMAGES_PER_PRODUCT, PRODUCT_IMAGE_FOLDER } from '../../media/media.constants';
+import { MediaService } from '../../media/media.service';
 import { getSpecsSchema } from '../specs/specs.schemas';
 import {
   type ProductRow,
@@ -53,7 +55,10 @@ function parseJsonFilter(raw: string | undefined, name: string) {
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly media: MediaService,
+  ) {}
 
   async list(query: ListProductsDto) {
     const { page, pageSize, sort } = query;
@@ -107,57 +112,139 @@ export class ProductsService {
     return mapProductDetail(product);
   }
 
-  async create(dto: CreateProductDto) {
+  async create(dto: CreateProductDto, files?: Express.Multer.File[]) {
+    // Validate everything that can be validated BEFORE uploading anything
     const category = await this.getCategory(dto.categoryId);
     await this.assertBrandExists(dto.brandId);
     const specs = this.validateSpecs(category, dto.specs);
 
-    const product = await this.prisma.product.create({
-      data: {
-        name: dto.name,
-        slug: resolveSlug(dto.name, dto.slug),
-        description: dto.description,
-        brandId: dto.brandId,
-        categoryId: dto.categoryId,
-        specs,
-        warrantyMonths: dto.warrantyMonths,
-        isActive: dto.isActive,
-      },
-      include: productInclude({}),
+    return this.media.withUploads(files, PRODUCT_IMAGE_FOLDER, async (images) => {
+      const product = await this.prisma.product.create({
+        data: {
+          name: dto.name,
+          slug: resolveSlug(dto.name, dto.slug),
+          description: dto.description,
+          brandId: dto.brandId,
+          categoryId: dto.categoryId,
+          specs,
+          warrantyMonths: dto.warrantyMonths,
+          isActive: dto.isActive,
+          images: {
+            create: images.map((img, i) => ({
+              secureUrl: img.secureUrl,
+              publicId: img.publicId,
+              isPrimary: i === 0,
+              position: i,
+            })),
+          },
+        },
+        include: productInclude({}),
+      });
+      return mapProductDetail(product);
     });
-    return mapProductDetail(product);
   }
 
-  async update(id: string, dto: UpdateProductDto) {
+  async update(id: string, dto: UpdateProductDto, files?: Express.Multer.File[]) {
+    const { removeImageIds = [], primaryImageId, ...fields } = dto;
+
     const existing = await this.prisma.product.findUnique({
       where: { id },
-      select: { categoryId: true, specs: true },
+      select: {
+        categoryId: true,
+        specs: true,
+        // Variant images are managed through the variant endpoints
+        images: {
+          where: { variantId: null },
+          orderBy: { position: 'asc' },
+          select: { id: true, publicId: true, isPrimary: true, position: true },
+        },
+      },
     });
     if (!existing) throw new NotFoundException('Product not found');
-    if (dto.brandId) await this.assertBrandExists(dto.brandId);
+
+    const hasFieldChange = Object.values(fields).some((v) => v !== undefined);
+    if (!hasFieldChange && !removeImageIds.length && !primaryImageId && !files?.length) {
+      throw new BadRequestException('Nothing to update');
+    }
+    if (fields.brandId) await this.assertBrandExists(fields.brandId);
 
     // Re-validate specs whenever the specs or the category change (specs are replaced, not merged)
     let specs: Prisma.InputJsonObject | undefined;
-    if (dto.specs !== undefined || dto.categoryId !== undefined) {
-      const category = await this.getCategory(dto.categoryId ?? existing.categoryId);
-      specs = this.validateSpecs(category, dto.specs ?? existing.specs);
+    if (fields.specs !== undefined || fields.categoryId !== undefined) {
+      const category = await this.getCategory(fields.categoryId ?? existing.categoryId);
+      specs = this.validateSpecs(category, fields.specs ?? existing.specs);
     }
 
-    const product = await this.prisma.product.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        slug: dto.slug,
-        description: dto.description,
-        brandId: dto.brandId,
-        categoryId: dto.categoryId,
-        specs,
-        warrantyMonths: dto.warrantyMonths,
-        isActive: dto.isActive,
-      },
-      include: productInclude({}),
+    const knownIds = new Set(existing.images.map((i) => i.id));
+    for (const imageId of [...removeImageIds, ...(primaryImageId ? [primaryImageId] : [])]) {
+      if (!knownIds.has(imageId)) {
+        throw new BadRequestException(`Image ${imageId} does not belong to this product`);
+      }
+    }
+    if (primaryImageId && removeImageIds.includes(primaryImageId)) {
+      throw new BadRequestException('primaryImageId cannot also be removed');
+    }
+
+    const removed = existing.images.filter((i) => removeImageIds.includes(i.id));
+    const remaining = existing.images.filter((i) => !removeImageIds.includes(i.id));
+    if (remaining.length + (files?.length ?? 0) > MAX_IMAGES_PER_PRODUCT) {
+      throw new BadRequestException(`A product can have at most ${MAX_IMAGES_PER_PRODUCT} images`);
+    }
+
+    const product = await this.media.withUploads(files, PRODUCT_IMAGE_FOLDER, (uploaded) => {
+      // Keep the requested/current primary; if none is left, the first new image becomes primary
+      const primaryId =
+        primaryImageId ?? remaining.find((i) => i.isPrimary)?.id ?? remaining[0]?.id;
+      const nextPosition = remaining.length ? Math.max(...remaining.map((i) => i.position)) + 1 : 0;
+      const imagesChanged =
+        removed.length > 0 || uploaded.length > 0 || primaryImageId !== undefined;
+
+      return this.prisma.$transaction(async (tx) => {
+        if (imagesChanged) {
+          if (removed.length) {
+            await tx.productImage.deleteMany({ where: { id: { in: removed.map((i) => i.id) } } });
+          }
+          // The partial unique index allows one primary: unset first, then set
+          await tx.productImage.updateMany({
+            where: { productId: id, isPrimary: true },
+            data: { isPrimary: false },
+          });
+          if (primaryId) {
+            await tx.productImage.update({ where: { id: primaryId }, data: { isPrimary: true } });
+          }
+          if (uploaded.length) {
+            await tx.productImage.createMany({
+              data: uploaded.map((img, i) => ({
+                productId: id,
+                secureUrl: img.secureUrl,
+                publicId: img.publicId,
+                position: nextPosition + i,
+                isPrimary: primaryImageId === undefined && i === 0,
+              })),
+            });
+          }
+        }
+        // Last, so the returned product includes the final images
+        return tx.product.update({
+          where: { id },
+          data: { ...fields, specs },
+          include: productInclude({}),
+        });
+      });
     });
+
+    // Only after the DB commit: a failure above must never lose an existing image
+    await this.media.deleteAssets(removed.map((i) => i.publicId));
     return mapProductDetail(product);
+  }
+
+  async removeImage(productId: string, imageId: string) {
+    const image = await this.prisma.productImage.findFirst({
+      where: { id: imageId, productId, variantId: null },
+      select: { id: true },
+    });
+    if (!image) throw new NotFoundException('Image not found');
+    await this.update(productId, { removeImageIds: [imageId] });
   }
 
   /** Soft delete: products with sales or stock history are never removed. */

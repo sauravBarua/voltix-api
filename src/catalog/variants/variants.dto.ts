@@ -1,6 +1,5 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { hasAtLeastOneField } from '../../common/schemas';
 
 const variantAttributes = z.looseObject({
   ramGb: z.number().int().positive().optional(),
@@ -8,7 +7,7 @@ const variantAttributes = z.looseObject({
   color: z.string().min(1).optional(),
 });
 
-const createVariantSchema = z.object({
+export const createVariantSchema = z.object({
   sku: z
     .string()
     .regex(
@@ -23,10 +22,10 @@ const createVariantSchema = z.object({
 });
 
 // SKU is the identity of a variant and reorderLevel belongs to Inventory (Phase 6)
-const updateVariantSchema = createVariantSchema
+export const updateVariantSchema = createVariantSchema
   .omit({ sku: true, reorderLevel: true })
   .partial()
-  .refine(hasAtLeastOneField, 'At least one field is required');
+  .extend({ removeImage: z.boolean().optional().describe('Delete the current variant image') });
 
 export const variantResponseSchema = z.object({
   id: z.uuid(),
@@ -43,5 +42,8 @@ export const variantResponseSchema = z.object({
 });
 
 export class CreateVariantDto extends createZodDto(createVariantSchema) {}
+/** Plain types (not ZodDto classes) so the global ZodValidationPipe skips the raw multipart `data` string. */
+export type CreateVariantInput = z.infer<typeof createVariantSchema>;
+export type UpdateVariantInput = z.infer<typeof updateVariantSchema>;
 export class UpdateVariantDto extends createZodDto(updateVariantSchema) {}
 export class VariantDto extends createZodDto(variantResponseSchema) {}
