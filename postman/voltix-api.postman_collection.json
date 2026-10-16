@@ -1,0 +1,1140 @@
+{
+  "info": {
+    "name": "Voltix API",
+    "description": "Voltix API. Phase 3: readiness check. Phase 4: catalog (categories, brands, products, variants). No auth until Phase 13.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "laptopCategoryId",
+      "value": ""
+    },
+    {
+      "key": "dellBrandId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "brandId",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": ""
+    },
+    {
+      "key": "productSlug",
+      "value": ""
+    },
+    {
+      "key": "variantId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Readiness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('ready and db up', () => {",
+                  "  pm.expect(body.status).to.eql('ready');",
+                  "  pm.expect(body.db).to.eql('up');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "ready"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Ready",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/ready",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["health", "ready"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"ready\",\n  \"db\": \"up\"\n}"
+            },
+            {
+              "name": "503 Database down",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/ready",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["health", "ready"]
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"unavailable\",\n  \"db\": \"down\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "List categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('non-empty array of categories', () => { pm.expect(body).to.be.an('array').that.is.not.empty; pm.expect(body[0]).to.have.keys('id', 'name', 'slug', 'parentId'); });",
+                  "const laptops = body.find(c => c.slug === 'laptops');",
+                  "pm.test('seed category laptops exists', () => pm.expect(laptops).to.exist);",
+                  "pm.collectionVariables.set('laptopCategoryId', laptops.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/categories"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[{\"id\":\"0192f5c4-0000-7000-8000-000000000001\",\"name\":\"Laptops\",\"slug\":\"laptops\",\"parentId\":null}]"
+            }
+          ]
+        },
+        {
+          "name": "Create category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id and slug', () => { pm.expect(body.id).to.be.a('string'); pm.expect(body.slug).to.be.a('string'); });",
+                  "pm.collectionVariables.set('categoryId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Cat {{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/categories"
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000010\",\"name\":\"Postman Cat 1\",\"slug\":\"postman-cat-1\",\"parentId\":null}"
+            },
+            {
+              "name": "400 Validation error",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"name\"],\"message\":\"Too small\"}]}"
+            },
+            {
+              "name": "409 Duplicate name or slug",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":409,\"message\":\"A record with the same unique value already exists\"}"
+            }
+          ]
+        },
+        {
+          "name": "Update category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('name was updated', () => pm.expect(pm.response.json().name).to.include('Renamed'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Cat Renamed {{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/categories/{{categoryId}}"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000010\",\"name\":\"Postman Cat Renamed 2\",\"slug\":\"postman-cat-1\",\"parentId\":null}"
+            },
+            {
+              "name": "400 Empty body",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"message\":\"At least one field is required\"}]}"
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":404,\"message\":\"Record not found\"}"
+            }
+          ]
+        },
+        {
+          "name": "Delete category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/categories/{{categoryId}}"
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":404,\"message\":\"Record not found\"}"
+            },
+            {
+              "name": "409 Category in use",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":409,\"message\":\"Operation conflicts with a reference (resource in use or reference missing)\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Brands",
+      "item": [
+        {
+          "name": "List brands",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('non-empty array of brands', () => { pm.expect(body).to.be.an('array').that.is.not.empty; pm.expect(body[0]).to.have.keys('id', 'name', 'slug'); });",
+                  "const dell = body.find(b => b.slug === 'dell');",
+                  "pm.test('seed brand dell exists', () => pm.expect(dell).to.exist);",
+                  "pm.collectionVariables.set('dellBrandId', dell.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/brands"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[{\"id\":\"0192f5c4-0000-7000-8000-000000000002\",\"name\":\"Dell\",\"slug\":\"dell\"}]"
+            }
+          ]
+        },
+        {
+          "name": "Create brand",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id and slug', () => { pm.expect(body.id).to.be.a('string'); pm.expect(body.slug).to.be.a('string'); });",
+                  "pm.collectionVariables.set('brandId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Brand {{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/brands"
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000020\",\"name\":\"Postman Brand 1\",\"slug\":\"postman-brand-1\"}"
+            },
+            {
+              "name": "400 Validation error",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"name\"],\"message\":\"Too small\"}]}"
+            },
+            {
+              "name": "409 Duplicate name or slug",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":409,\"message\":\"A record with the same unique value already exists\"}"
+            }
+          ]
+        },
+        {
+          "name": "Update brand",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('name was updated', () => pm.expect(pm.response.json().name).to.include('Renamed'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Brand Renamed {{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/brands/{{brandId}}"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000020\",\"name\":\"Postman Brand Renamed 2\",\"slug\":\"postman-brand-1\"}"
+            },
+            {
+              "name": "400 Empty body",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"message\":\"At least one field is required\"}]}"
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":404,\"message\":\"Record not found\"}"
+            }
+          ]
+        },
+        {
+          "name": "Delete brand",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/brands/{{brandId}}"
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":404,\"message\":\"Record not found\"}"
+            },
+            {
+              "name": "409 Brand has products",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":409,\"message\":\"Operation conflicts with a reference (resource in use or reference missing)\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List products (brand, price, sort)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has items and meta', () => { pm.expect(body.items).to.be.an('array'); pm.expect(body.meta).to.have.keys('page', 'pageSize', 'total', 'totalPages'); });",
+                  "pm.test('all items are Apple', () => pm.expect(body.items.every(i => i.brand.slug === 'apple')).to.be.true);",
+                  "pm.test('sorted by price asc', () => { const p = body.items.map(i => i.priceFromMinor); pm.expect(p).to.eql([...p].sort((a, b) => a - b)); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products?brand=apple&minPrice=50000&maxPrice=200000&sort=price_asc&page=1&pageSize=10"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"items\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000101\",\"name\":\"iPhone 16 Pro\",\"slug\":\"iphone-16-pro\",\"brand\":{\"id\":\"0192f5c4-0000-7000-8000-000000000003\",\"name\":\"Apple\",\"slug\":\"apple\"},\"category\":{\"id\":\"0192f5c4-0000-7000-8000-000000000004\",\"name\":\"Smartphones\",\"slug\":\"smartphones\"},\"imageUrl\":null,\"priceFromMinor\":129900,\"currency\":\"EUR\",\"inStock\":true}],\"meta\":{\"page\":1,\"pageSize\":10,\"total\":1,\"totalPages\":1}}"
+            },
+            {
+              "name": "400 Invalid query",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"minPrice\"],\"message\":\"Too small\"}]}"
+            }
+          ]
+        },
+        {
+          "name": "List products (specs filter)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const slugs = pm.response.json().items.map(i => i.slug);",
+                  "pm.test('contains the MacBook and no Dell', () => { pm.expect(slugs).to.include('macbook-air-13-m3'); pm.expect(slugs).to.not.include('dell-xps-14'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products?category=laptops&specs=%7B%22os%22%3A%22macOS%22%7D"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"items\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000100\",\"name\":\"MacBook Air 13\\\" M3\",\"slug\":\"macbook-air-13-m3\",\"brand\":{\"id\":\"0192f5c4-0000-7000-8000-000000000003\",\"name\":\"Apple\",\"slug\":\"apple\"},\"category\":{\"id\":\"0192f5c4-0000-7000-8000-000000000001\",\"name\":\"Laptops\",\"slug\":\"laptops\"},\"imageUrl\":null,\"priceFromMinor\":119900,\"currency\":\"EUR\",\"inStock\":true}],\"meta\":{\"page\":1,\"pageSize\":20,\"total\":1,\"totalPages\":1}}"
+            },
+            {
+              "name": "400 specs is not valid JSON",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"specs must be a valid JSON object\",\"error\":\"Bad Request\"}"
+            }
+          ]
+        },
+        {
+          "name": "Get product by slug",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has specs and variants', () => { pm.expect(body.specs).to.be.an('object'); pm.expect(body.variants).to.be.an('array').that.is.not.empty; });",
+                  "pm.test('variant has sku, price and available', () => { const v = body.variants[0]; pm.expect(v.sku).to.be.a('string'); pm.expect(v.priceMinor).to.be.a('number'); pm.expect(v.available).to.be.a('number'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products/iphone-16-pro"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000101\",\"name\":\"iPhone 16 Pro\",\"slug\":\"iphone-16-pro\",\"brand\":{\"id\":\"0192f5c4-0000-7000-8000-000000000003\",\"name\":\"Apple\",\"slug\":\"apple\"},\"category\":{\"id\":\"0192f5c4-0000-7000-8000-000000000004\",\"name\":\"Smartphones\",\"slug\":\"smartphones\"},\"imageUrl\":null,\"priceFromMinor\":129900,\"currency\":\"EUR\",\"inStock\":true,\"description\":\"Titanium smartphone with the A18 Pro chip.\",\"specs\":{\"chipset\":\"A18 Pro\",\"screenSizeInch\":6.3,\"batteryMah\":3582,\"os\":\"iOS\"},\"warrantyMonths\":24,\"images\":[],\"variants\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000201\",\"sku\":\"IP16P-256-BLK\",\"name\":\"256 GB / Black Titanium\",\"attributes\":{\"storageGb\":256,\"color\":\"Black Titanium\"},\"priceMinor\":129900,\"currency\":\"EUR\",\"isActive\":true,\"available\":3}]}"
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":404,\"message\":\"Product not found\",\"error\":\"Not Found\"}"
+            }
+          ]
+        },
+        {
+          "name": "Create product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id, slug and no variants yet', () => { pm.expect(body.id).to.be.a('string'); pm.expect(body.slug).to.be.a('string'); pm.expect(body.variants).to.eql([]); });",
+                  "pm.collectionVariables.set('productId', body.id);",
+                  "pm.collectionVariables.set('productSlug', body.slug);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Laptop {{$timestamp}}\",\n  \"description\": \"Created from Postman\",\n  \"brandId\": \"{{dellBrandId}}\",\n  \"categoryId\": \"{{laptopCategoryId}}\",\n  \"specs\": {\n    \"cpu\": \"Intel Core i5-1335U\",\n    \"gpu\": \"Intel Iris Xe\",\n    \"screenSizeInch\": 15.6,\n    \"resolution\": \"1920x1080\",\n    \"batteryWh\": 54,\n    \"weightKg\": 1.7,\n    \"os\": \"Windows 11\"\n  },\n  \"warrantyMonths\": 24\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/products"
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000300\",\"name\":\"Postman Laptop 1\",\"slug\":\"postman-laptop-1\",\"brand\":{\"id\":\"0192f5c4-0000-7000-8000-000000000002\",\"name\":\"Dell\",\"slug\":\"dell\"},\"category\":{\"id\":\"0192f5c4-0000-7000-8000-000000000001\",\"name\":\"Laptops\",\"slug\":\"laptops\"},\"imageUrl\":null,\"priceFromMinor\":null,\"currency\":null,\"inStock\":false,\"description\":\"Created from Postman\",\"specs\":{\"cpu\":\"Intel Core i5-1335U\",\"screenSizeInch\":15.6,\"os\":\"Windows 11\"},\"warrantyMonths\":24,\"images\":[],\"variants\":[]}"
+            },
+            {
+              "name": "400 Invalid specs for category",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"error\":\"Bad Request\",\"message\":\"Invalid specs for category \\\"laptops\\\"\",\"errors\":[{\"path\":\"screenSizeInch\",\"message\":\"Invalid input: expected number, received undefined\"},{\"path\":\"os\",\"message\":\"Invalid input: expected string, received undefined\"}]}"
+            },
+            {
+              "name": "409 Slug already exists",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":409,\"message\":\"A record with the same unique value already exists\"}"
+            }
+          ]
+        },
+        {
+          "name": "Update product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('fields updated', () => { pm.expect(body.description).to.eql('Updated by Postman'); pm.expect(body.warrantyMonths).to.eql(36); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated by Postman\",\n  \"warrantyMonths\": 36\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/products/{{productId}}"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000300\",\"name\":\"Postman Laptop 1\",\"slug\":\"postman-laptop-1\",\"description\":\"Updated by Postman\",\"warrantyMonths\":36,\"variants\":[]}"
+            },
+            {
+              "name": "400 Invalid specs",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"error\":\"Bad Request\",\"message\":\"Invalid specs for category \\\"laptops\\\"\",\"errors\":[{\"path\":\"cpu\",\"message\":\"Invalid input: expected string, received undefined\"}]}"
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":404,\"message\":\"Product not found\",\"error\":\"Not Found\"}"
+            }
+          ]
+        },
+        {
+          "name": "Variants",
+          "item": [
+            {
+              "name": "Create variant",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                      "const body = pm.response.json();",
+                      "pm.test('variant shape and zero stock', () => { pm.expect(body.sku).to.match(/^PM-/); pm.expect(body.priceMinor).to.eql(149900); pm.expect(body.available).to.eql(0); });",
+                      "pm.collectionVariables.set('variantId', body.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sku\": \"PM-{{$timestamp}}\",\n  \"name\": \"16 GB / 512 GB / Silver\",\n  \"attributes\": { \"ramGb\": 16, \"storageGb\": 512, \"color\": \"Silver\" },\n  \"priceMinor\": 149900,\n  \"reorderLevel\": 5\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/products/{{productId}}/variants"
+              },
+              "response": [
+                {
+                  "name": "201 Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000400\",\"sku\":\"PM-1760000000\",\"name\":\"16 GB / 512 GB / Silver\",\"attributes\":{\"ramGb\":16,\"storageGb\":512,\"color\":\"Silver\"},\"priceMinor\":149900,\"currency\":\"EUR\",\"isActive\":true,\"available\":0}"
+                },
+                {
+                  "name": "400 Invalid SKU or price",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"sku\"],\"message\":\"uppercase letters, digits, dot, underscore, hyphen (3-64 chars)\"}]}"
+                },
+                {
+                  "name": "404 Product not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Product not found\",\"error\":\"Not Found\"}"
+                },
+                {
+                  "name": "409 SKU already exists",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"message\":\"A record with the same unique value already exists\"}"
+                }
+              ]
+            },
+            {
+              "name": "Update variant",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "pm.test('price updated', () => pm.expect(pm.response.json().priceMinor).to.eql(139900));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priceMinor\": 139900\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/variants/{{variantId}}"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000400\",\"sku\":\"PM-1760000000\",\"name\":\"16 GB / 512 GB / Silver\",\"attributes\":{\"ramGb\":16,\"storageGb\":512,\"color\":\"Silver\"},\"priceMinor\":139900,\"currency\":\"EUR\",\"isActive\":true,\"available\":0}"
+                },
+                {
+                  "name": "400 Negative price",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"priceMinor\"],\"message\":\"Too small\"}]}"
+                },
+                {
+                  "name": "404 Not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Record not found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Deactivate variant",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/variants/{{variantId}}"
+              },
+              "response": [
+                {
+                  "name": "204 No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "header": [],
+                  "body": ""
+                },
+                {
+                  "name": "404 Not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Record not found\"}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Deactivate product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/products/{{productId}}"
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":404,\"message\":\"Record not found\"}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
