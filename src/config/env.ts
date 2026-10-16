@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
-// Grows phase by phase (DATABASE_URL in Phase 3, CLOUDINARY_* in Phase 5, STRIPE_* in Phase 10...)
+// Grows phase by phase (CLOUDINARY_* in Phase 5, STRIPE_* in Phase 10...)
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
+  DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgres:// URL'),
 });
 
 export type Env = z.infer<typeof envSchema>;
