@@ -354,3 +354,15 @@ model OutboxEvent {
   @@index([status, availableAt])
   @@map("outbox_events")
 }
+
+// Consumer idempotency: one row per (consumer, message), written in the handler's transaction
+model ProcessedMessage {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  consumer    String
+  messageId   String   @map("message_id")
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(3)
+
+  @@unique([consumer, messageId])
+  @@index([processedAt])
+  @@map("processed_messages")
+}

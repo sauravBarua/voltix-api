@@ -12,6 +12,7 @@ import { CartModule } from './cart/cart.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { OutboxModule } from './outbox/outbox.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { PaymentsModule } from './payments/payments.module';
     ReservationsModule,
     OrdersModule,
     PaymentsModule,
+    OutboxModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

@@ -21,6 +21,10 @@ export const envSchema = z
       .url()
       .transform((u) => u.replace(/\/+$/, ''))
       .default('http://localhost:3001'),
+    RABBITMQ_URL: z
+      .string()
+      .regex(/^amqps?:\/\//, 'must be an amqp:// URL')
+      .default('amqp://voltix:voltix@localhost:5672'),
   })
   .refine((e) => e.NODE_ENV === 'production' || !e.STRIPE_SECRET_KEY.includes('_live_'), {
     message: 'Live Stripe keys are not allowed outside production',

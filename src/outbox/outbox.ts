@@ -1,6 +1,6 @@
 import type { Prisma } from '../generated/prisma/client';
 
-/** Written in the same transaction as the state change; Phase 11 publishes these rows to RabbitMQ. */
+/** Written in the same transaction as the state change; the worker publishes these rows to RabbitMQ. */
 export function enqueueOutbox(
   tx: Prisma.TransactionClient,
   event: { aggregateId: string; type: string; payload: Prisma.InputJsonObject },

@@ -412,7 +412,8 @@ export const ModelName = {
   StockReservation: 'StockReservation',
   Payment: 'Payment',
   StripeWebhookEvent: 'StripeWebhookEvent',
-  OutboxEvent: 'OutboxEvent'
+  OutboxEvent: 'OutboxEvent',
+  ProcessedMessage: 'ProcessedMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -428,7 +429,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "category" | "brand" | "product" | "productVariant" | "productImage" | "inventoryItem" | "inventoryMovement" | "cart" | "cartItem" | "order" | "orderItem" | "stockReservation" | "payment" | "stripeWebhookEvent" | "outboxEvent"
+    modelProps: "user" | "category" | "brand" | "product" | "productVariant" | "productImage" | "inventoryItem" | "inventoryMovement" | "cart" | "cartItem" | "order" | "orderItem" | "stockReservation" | "payment" | "stripeWebhookEvent" | "outboxEvent" | "processedMessage"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1616,6 +1617,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    ProcessedMessage: {
+      payload: Prisma.$ProcessedMessagePayload<ExtArgs>
+      fields: Prisma.ProcessedMessageFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ProcessedMessageFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ProcessedMessageFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>
+        }
+        findFirst: {
+          args: Prisma.ProcessedMessageFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ProcessedMessageFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>
+        }
+        findMany: {
+          args: Prisma.ProcessedMessageFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>[]
+        }
+        create: {
+          args: Prisma.ProcessedMessageCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>
+        }
+        createMany: {
+          args: Prisma.ProcessedMessageCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ProcessedMessageCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>[]
+        }
+        delete: {
+          args: Prisma.ProcessedMessageDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>
+        }
+        update: {
+          args: Prisma.ProcessedMessageUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>
+        }
+        deleteMany: {
+          args: Prisma.ProcessedMessageDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ProcessedMessageUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ProcessedMessageUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>[]
+        }
+        upsert: {
+          args: Prisma.ProcessedMessageUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProcessedMessagePayload>
+        }
+        aggregate: {
+          args: Prisma.ProcessedMessageAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProcessedMessage>
+        }
+        groupBy: {
+          args: Prisma.ProcessedMessageGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProcessedMessageGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ProcessedMessageCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProcessedMessageCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1882,6 +1957,16 @@ export const OutboxEventScalarFieldEnum = {
 } as const
 
 export type OutboxEventScalarFieldEnum = (typeof OutboxEventScalarFieldEnum)[keyof typeof OutboxEventScalarFieldEnum]
+
+
+export const ProcessedMessageScalarFieldEnum = {
+  id: 'id',
+  consumer: 'consumer',
+  messageId: 'messageId',
+  processedAt: 'processedAt'
+} as const
+
+export type ProcessedMessageScalarFieldEnum = (typeof ProcessedMessageScalarFieldEnum)[keyof typeof ProcessedMessageScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -2257,6 +2342,7 @@ export type GlobalOmitConfig = {
   payment?: Prisma.PaymentOmit
   stripeWebhookEvent?: Prisma.StripeWebhookEventOmit
   outboxEvent?: Prisma.OutboxEventOmit
+  processedMessage?: Prisma.ProcessedMessageOmit
 }
 
 /* Types for Logging */

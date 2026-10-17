@@ -66,7 +66,8 @@ export const ModelName = {
   StockReservation: 'StockReservation',
   Payment: 'Payment',
   StripeWebhookEvent: 'StripeWebhookEvent',
-  OutboxEvent: 'OutboxEvent'
+  OutboxEvent: 'OutboxEvent',
+  ProcessedMessage: 'ProcessedMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -312,6 +313,16 @@ export const OutboxEventScalarFieldEnum = {
 } as const
 
 export type OutboxEventScalarFieldEnum = (typeof OutboxEventScalarFieldEnum)[keyof typeof OutboxEventScalarFieldEnum]
+
+
+export const ProcessedMessageScalarFieldEnum = {
+  id: 'id',
+  consumer: 'consumer',
+  messageId: 'messageId',
+  processedAt: 'processedAt'
+} as const
+
+export type ProcessedMessageScalarFieldEnum = (typeof ProcessedMessageScalarFieldEnum)[keyof typeof ProcessedMessageScalarFieldEnum]
 
 
 export const SortOrder = {

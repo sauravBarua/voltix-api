@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
+import { enqueueOutbox } from '../outbox/outbox';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReservationsService } from '../reservations/reservations.service';
@@ -96,6 +97,13 @@ export class OrdersService {
       if (count === 0 && released.length > 0) {
         throw new Error(`Order ${orderId} had active reservations but was not pending`); // roll back
       }
+      if (count > 0) {
+        await enqueueOutbox(tx, {
+          aggregateId: orderId,
+          type: 'order.cancelled',
+          payload: { orderId, reason: 'CUSTOMER_CANCELLED' },
+        });
+      }
       return count > 0;
     });
 
@@ -156,11 +164,21 @@ export class OrdersService {
         `Only paid orders can be shipped (current status: ${order.status})`,
       );
     }
-    const { count } = await this.prisma.order.updateMany({
-      where: { id: orderId, status: 'PAID' },
-      data: { status: 'SHIPPED', shippedAt: new Date() },
+    const shipped = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.order.updateMany({
+        where: { id: orderId, status: 'PAID' },
+        data: { status: 'SHIPPED', shippedAt: new Date() },
+      });
+      if (count > 0) {
+        await enqueueOutbox(tx, {
+          aggregateId: orderId,
+          type: 'order.shipped',
+          payload: { orderId },
+        });
+      }
+      return count > 0;
     });
-    if (count === 0) throw new ConflictException('The order status changed, please reload');
+    if (!shipped) throw new ConflictException('The order status changed, please reload');
     return this.getAdmin(orderId);
   }
 
@@ -243,6 +261,11 @@ export class OrdersService {
     await this.reservations.reserve(tx, {
       orderId: order.id,
       lines: lines.map((l) => ({ variantId: l.variant.id, quantity: l.quantity })),
+    });
+    await enqueueOutbox(tx, {
+      aggregateId: order.id,
+      type: 'order.created',
+      payload: { orderId: order.id, userId, totalMinor, currency },
     });
     return order.id;
   }

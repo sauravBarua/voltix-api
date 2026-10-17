@@ -2,6 +2,7 @@ import { ConflictException, Injectable, Logger, NotFoundException } from '@nestj
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../config/env';
 import { Prisma } from '../generated/prisma/client';
+import { enqueueOutbox } from '../outbox/outbox';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReservationHooks } from './reservation-hooks';
 import type { ListReservationsDto } from './reservations.dto';
@@ -138,7 +139,7 @@ export class ReservationsService {
           const resolved = await this.expireOrder(tx, orderId, now);
           if (resolved.length > 0) {
             // Conditional: a paid or already cancelled order is left alone
-            await tx.order.updateMany({
+            const { count } = await tx.order.updateMany({
               where: { id: orderId, status: 'PENDING_PAYMENT' },
               data: {
                 status: 'CANCELLED',
@@ -146,6 +147,13 @@ export class ReservationsService {
                 cancelledAt: new Date(),
               },
             });
+            if (count > 0) {
+              await enqueueOutbox(tx, {
+                aggregateId: orderId,
+                type: 'order.cancelled',
+                payload: { orderId, reason: 'RESERVATION_EXPIRED' },
+              });
+            }
           }
           return resolved;
         });

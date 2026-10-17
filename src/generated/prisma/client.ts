@@ -119,3 +119,8 @@ export type StripeWebhookEvent = Prisma.StripeWebhookEventModel
  * 
  */
 export type OutboxEvent = Prisma.OutboxEventModel
+/**
+ * Model ProcessedMessage
+ * 
+ */
+export type ProcessedMessage = Prisma.ProcessedMessageModel

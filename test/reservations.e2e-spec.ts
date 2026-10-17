@@ -301,6 +301,9 @@ describe('Reservations (e2e)', () => {
     });
     expect(due).toMatchObject({ status: 'CANCELLED', cancelReason: 'RESERVATION_EXPIRED' });
     expect(due.cancelledAt).not.toBeNull();
+    expect(
+      await prisma.outboxEvent.count({ where: { aggregateId: dueOrder, type: 'order.cancelled' } }),
+    ).toBe(1);
     const fresh = await prisma.order.findUniqueOrThrow({
       where: { id: freshOrder },
       select: { status: true },

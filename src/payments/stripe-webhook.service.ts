@@ -5,7 +5,7 @@ import type { OrderStatus, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReservationsService } from '../reservations/reservations.service';
 import { byVariantId } from '../reservations/reservations.utils';
-import { enqueueOutbox } from './outbox';
+import { enqueueOutbox } from '../outbox/outbox';
 import { statusForRefundTotal } from './payments.utils';
 import { StripeService } from './stripe.service';
 

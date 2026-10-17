@@ -226,6 +226,9 @@ describe('Orders (e2e)', () => {
         where: { variantId: variant, type: 'RESERVE', referenceId: order.id },
       }),
     ).toBe(1);
+    expect(
+      await prisma.outboxEvent.count({ where: { aggregateId: order.id, type: 'order.created' } }),
+    ).toBe(1);
 
     const cart = (await api(user).get('/cart').expect(200)).body as { itemCount: number };
     expect(cart.itemCount).toBe(2); // kept until payment (Phase 10)
@@ -394,6 +397,9 @@ describe('Orders (e2e)', () => {
       select: { status: true },
     });
     expect(reservation.status).toBe('RELEASED');
+    expect(
+      await prisma.outboxEvent.count({ where: { aggregateId: order.id, type: 'order.cancelled' } }),
+    ).toBe(1);
 
     await api(user).post(`/orders/${order.id}/cancel`).expect(201); // idempotent
     expect((await checkout(user)).status).toBe(201); // the open-order lock is gone
@@ -434,6 +440,9 @@ describe('Orders (e2e)', () => {
     expect(shipped.status).toBe('SHIPPED');
     expect(shipped.shippedAt).not.toBeNull();
     await api().post(`/admin/orders/${order.id}/ship`).expect(200); // idempotent
+    expect(
+      await prisma.outboxEvent.count({ where: { aggregateId: order.id, type: 'order.shipped' } }),
+    ).toBe(1);
     await api(user).post(`/orders/${order.id}/cancel`).expect(409);
     await api().post(`/admin/orders/${randomUUID()}/ship`).expect(404);
   });

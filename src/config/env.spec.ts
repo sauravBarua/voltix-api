@@ -16,6 +16,7 @@ describe('validateEnv', () => {
       PORT: 3000,
       RESERVATION_TTL_MINUTES: 32,
       FRONTEND_URL: 'http://localhost:3001',
+      RABBITMQ_URL: 'amqp://voltix:voltix@localhost:5672',
       ...base,
     });
   });
@@ -74,5 +75,14 @@ describe('validateEnv', () => {
     expect(validateEnv({ ...base, FRONTEND_URL: 'https://shop.example.com/' }).FRONTEND_URL).toBe(
       'https://shop.example.com',
     );
+  });
+
+  it('validates RABBITMQ_URL', () => {
+    expect(() => validateEnv({ ...base, RABBITMQ_URL: 'http://localhost:5672' })).toThrow(
+      /RABBITMQ_URL/,
+    );
+    expect(
+      validateEnv({ ...base, RABBITMQ_URL: 'amqps://user:pw@mq.example.com' }).RABBITMQ_URL,
+    ).toBe('amqps://user:pw@mq.example.com');
   });
 });
