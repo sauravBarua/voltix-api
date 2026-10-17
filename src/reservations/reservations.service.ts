@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../config/env';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReservationHooks } from './reservation-hooks';
 import type { ListReservationsDto } from './reservations.dto';
 import { reservationSelect, toReservationView } from './reservations.mapper';
 import { type ReserveLine, byVariantId, normalizeLines } from './reservations.utils';
@@ -26,6 +27,7 @@ export class ReservationsService {
   constructor(
     private readonly prisma: PrismaService,
     config: ConfigService<Env, true>,
+    private readonly hooks: ReservationHooks,
   ) {
     this.ttlMs = config.get('RESERVATION_TTL_MINUTES', { infer: true }) * 60_000;
   }
@@ -91,9 +93,22 @@ export class ReservationsService {
     return this.transition(tx, orderId, 'RELEASED');
   }
 
-  /** ACTIVE -> EXPIRED (TTL elapsed). Same effect as release, different status and ledger reason. */
-  expireOrder(tx: Tx, orderId: string) {
-    return this.transition(tx, orderId, 'EXPIRED');
+  /** ACTIVE -> EXPIRED. With `dueBefore`, only reservations still due at that moment (race-safe vs extension). */
+  expireOrder(tx: Tx, orderId: string, dueBefore?: Date) {
+    return this.transition(tx, orderId, 'EXPIRED', dueBefore);
+  }
+
+  /**
+   * Pushes the hold of an order's ACTIVE reservations out to at least `minExpiresAt` (never shortens it).
+   * Returns how many reservations were extended: 0 means the hold is already gone.
+   */
+  async extendHold(tx: Tx, orderId: string, minExpiresAt: Date): Promise<number> {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      UPDATE stock_reservations
+      SET expires_at = GREATEST(expires_at, ${minExpiresAt.toISOString()}::timestamptz), updated_at = now()
+      WHERE order_id = ${orderId}::uuid AND status = 'ACTIVE'
+      RETURNING id`;
+    return rows.length;
   }
 
   /** ACTIVE -> CONSUMED (payment succeeded): on_hand and reserved both drop. [] means it was not active. */
@@ -115,10 +130,12 @@ export class ReservationsService {
 
     let expiredOrders = 0;
     let failedOrders = 0;
+    const expiredIds: string[] = [];
     for (const { orderId } of due) {
       try {
         const lines = await this.prisma.$transaction(async (tx) => {
-          const resolved = await this.expireOrder(tx, orderId);
+          // Re-checks "still due" under the row lock: a concurrent extension (payment started) wins
+          const resolved = await this.expireOrder(tx, orderId, now);
           if (resolved.length > 0) {
             // Conditional: a paid or already cancelled order is left alone
             await tx.order.updateMany({
@@ -132,7 +149,10 @@ export class ReservationsService {
           }
           return resolved;
         });
-        if (lines.length > 0) expiredOrders++;
+        if (lines.length > 0) {
+          expiredOrders++;
+          expiredIds.push(orderId);
+        }
       } catch (error) {
         failedOrders++;
         this.logger.error(
@@ -140,6 +160,9 @@ export class ReservationsService {
         );
       }
     }
+
+    // After the commits: close the Stripe Checkout Sessions of the orders just expired
+    if (expiredIds.length > 0) await this.hooks.runExpired(expiredIds);
     return { expiredOrders, failedOrders };
   }
 
@@ -175,12 +198,20 @@ export class ReservationsService {
    * hands the rows to exactly one transaction: a concurrent expiry, cancellation or payment
    * blocks on the row lock, re-checks the status, gets nothing back, and does nothing.
    */
-  private async transition(tx: Tx, orderId: string, to: Target): Promise<ResolvedLine[]> {
+  private async transition(
+    tx: Tx,
+    orderId: string,
+    to: Target,
+    dueBefore?: Date,
+  ): Promise<ResolvedLine[]> {
+    const dueClause = dueBefore
+      ? Prisma.sql`AND expires_at <= ${dueBefore.toISOString()}::timestamptz`
+      : Prisma.empty;
     // `to` is a typed union of constants, never user input, so injecting it as a literal is safe
     const rows = await tx.$queryRaw<ResolvedLine[]>`
       UPDATE stock_reservations
       SET status = ${Prisma.raw(`'${to}'`)}, resolved_at = now(), updated_at = now()
-      WHERE order_id = ${orderId}::uuid AND status = 'ACTIVE'
+      WHERE order_id = ${orderId}::uuid AND status = 'ACTIVE' ${dueClause}
       RETURNING variant_id AS "variantId", quantity`;
     const lines = [...rows].sort(byVariantId); // same lock order as reserve()
 

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
+import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReservationsService } from '../reservations/reservations.service';
 import { MAX_ORDER_TOTAL_MINOR } from './orders.constants';
@@ -29,6 +30,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reservations: ReservationsService,
+    private readonly payments: PaymentsService,
   ) {}
 
   async checkout(userId: string, idempotencyKey: string, dto: CheckoutDto) {
@@ -79,6 +81,10 @@ export class OrdersService {
     if (order.status !== 'PENDING_PAYMENT') {
       throw new ConflictException(`An order in status ${order.status} cannot be cancelled`);
     }
+
+    // Close the Stripe Checkout Session first: once it is expired the customer can no longer pay.
+    // Throws 409 if the payment has already completed (it is being confirmed by the webhook).
+    await this.payments.expireOpenSession(orderId);
 
     const cancelled = await this.prisma.$transaction(async (tx) => {
       // Lock order shared with expiry and payment: reservations first, then the order row

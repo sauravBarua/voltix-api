@@ -5,6 +5,8 @@ const base = {
   CLOUDINARY_CLOUD_NAME: 'cloud',
   CLOUDINARY_API_KEY: 'key',
   CLOUDINARY_API_SECRET: 'secret',
+  STRIPE_SECRET_KEY: 'sk_test_dummy',
+  STRIPE_WEBHOOK_SECRET: 'whsec_dummy',
 };
 
 describe('validateEnv', () => {
@@ -13,6 +15,7 @@ describe('validateEnv', () => {
       NODE_ENV: 'development',
       PORT: 3000,
       RESERVATION_TTL_MINUTES: 32,
+      FRONTEND_URL: 'http://localhost:3001',
       ...base,
     });
   });
@@ -44,6 +47,32 @@ describe('validateEnv', () => {
     );
     expect(validateEnv({ ...base, RESERVATION_TTL_MINUTES: '45' }).RESERVATION_TTL_MINUTES).toBe(
       45,
+    );
+  });
+
+  it('validates the Stripe variables', () => {
+    expect(() => validateEnv({ ...base, STRIPE_SECRET_KEY: undefined })).toThrow(
+      /STRIPE_SECRET_KEY/,
+    );
+    expect(() => validateEnv({ ...base, STRIPE_SECRET_KEY: 'pk_test_abc' })).toThrow(
+      /STRIPE_SECRET_KEY/,
+    );
+    expect(() => validateEnv({ ...base, STRIPE_WEBHOOK_SECRET: 'nope' })).toThrow(
+      /STRIPE_WEBHOOK_SECRET/,
+    );
+  });
+
+  it('refuses live keys outside production', () => {
+    const live = { ...base, STRIPE_SECRET_KEY: 'sk_live_abc123' };
+    expect(() => validateEnv(live)).toThrow(/Live Stripe keys/);
+    expect(validateEnv({ ...live, NODE_ENV: 'production' }).STRIPE_SECRET_KEY).toBe(
+      'sk_live_abc123',
+    );
+  });
+
+  it('strips a trailing slash from FRONTEND_URL', () => {
+    expect(validateEnv({ ...base, FRONTEND_URL: 'https://shop.example.com/' }).FRONTEND_URL).toBe(
+      'https://shop.example.com',
     );
   });
 });

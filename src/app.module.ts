@@ -11,6 +11,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { CartModule } from './cart/cart.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { OrdersModule } from './orders/orders.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { OrdersModule } from './orders/orders.module';
     CartModule,
     ReservationsModule,
     OrdersModule,
+    PaymentsModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
