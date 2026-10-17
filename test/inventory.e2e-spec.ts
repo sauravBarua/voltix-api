@@ -130,6 +130,9 @@ describe('Inventory (e2e)', () => {
 
     await op(v.id, 'stock-out', { quantity: 7, reason: 'Exactly available' }).expect(201);
     expect(await stockOf(v.id)).toMatchObject({ onHand: 3, reserved: 3, available: 0 });
+
+    // Undo the simulated reservation so test data stays consistent
+    await prisma.$executeRaw`UPDATE inventory_items SET reserved = 0 WHERE variant_id = ${v.id}::uuid`;
   });
 
   it('adjusts up and down with a reason', async () => {

@@ -19,7 +19,9 @@
     { "key": "idemKey", "value": "" },
     { "key": "onHandBefore", "value": "" },
     { "key": "onHandAfterIn", "value": "" },
-    { "key": "movementId", "value": "" }
+    { "key": "movementId", "value": "" },
+    { "key": "customerId", "value": "" },
+    { "key": "variantId2", "value": "" }
   ],
   "item": [
     {
@@ -1601,6 +1603,878 @@
               "code": 400,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"to\"],\"message\":\"from must be <= to\"}]}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "description": "Phase 7. TEMPORARY auth: set the customerId collection variable to the seeded customer id (sent as x-user-id) until Phase 13.",
+      "item": [
+        {
+          "name": "Setup",
+          "item": [
+            {
+              "name": "Get variant id (iPhone 16 Pro 512 GB)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const v = pm.response.json().variants.find(x => x.sku === 'IP16P-512-NAT');",
+                      "pm.test('seed variant exists', () => pm.expect(v).to.exist);",
+                      "pm.collectionVariables.set('variantId', v.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/products/iphone-16-pro"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"slug\":\"iphone-16-pro\",\"variants\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"available\":15}]}"
+                }
+              ]
+            },
+            {
+              "name": "Get variant id (Galaxy S24 Ultra 256 GB)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const v = pm.response.json().variants.find(x => x.sku === 'S24U-256-GRY');",
+                      "pm.test('seed variant exists', () => pm.expect(v).to.exist);",
+                      "pm.collectionVariables.set('variantId2', v.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/products/galaxy-s24-ultra"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"slug\":\"galaxy-s24-ultra\",\"variants\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000203\",\"sku\":\"S24U-256-GRY\",\"available\":20}]}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Cart",
+          "item": [
+            {
+              "name": "Get cart (401 no header)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 401', () => pm.response.to.have.status(401));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/cart"
+              },
+              "response": [
+                {
+                  "name": "401 Missing or invalid x-user-id",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                }
+              ]
+            },
+            {
+              "name": "Clear cart (start clean)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "pm.test('cart is empty', () => { const b = pm.response.json(); pm.expect(b.items).to.eql([]); pm.expect(b.itemCount).to.eql(0); pm.expect(b.subtotalMinor).to.eql(0); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/cart"
+              },
+              "response": [
+                {
+                  "name": "200 Empty cart",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[],\"itemCount\":0,\"subtotalMinor\":0,\"currency\":\"EUR\",\"hasIssues\":false}"
+                },
+                {
+                  "name": "401 Unknown user",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Unknown user\",\"error\":\"Unauthorized\"}"
+                }
+              ]
+            },
+            {
+              "name": "Get cart (empty)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('cart shape', () => pm.expect(b).to.have.keys('id', 'items', 'itemCount', 'subtotalMinor', 'currency', 'hasIssues'));",
+                      "pm.test('no items, no issues', () => { pm.expect(b.items).to.eql([]); pm.expect(b.hasIssues).to.be.false; });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/cart"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":null,\"items\":[],\"itemCount\":0,\"subtotalMinor\":0,\"currency\":\"EUR\",\"hasIssues\":false}"
+                },
+                {
+                  "name": "401 Missing x-user-id",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                }
+              ]
+            },
+            {
+              "name": "Add item (qty 2)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('one line with quantity 2 and status OK', () => {",
+                      "  pm.expect(b.items).to.have.lengthOf(1);",
+                      "  pm.expect(b.items[0].variantId).to.eql(pm.collectionVariables.get('variantId'));",
+                      "  pm.expect(b.items[0].quantity).to.eql(2);",
+                      "  pm.expect(b.items[0].status).to.eql('OK');",
+                      "  pm.expect(b.itemCount).to.eql(2);",
+                      "});",
+                      "pm.test('subtotal equals unit price x quantity', () => pm.expect(b.subtotalMinor).to.eql(b.items[0].unitPriceMinor * 2));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"variantId\": \"{{variantId}}\",\n  \"quantity\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[{\"variantId\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"productName\":\"iPhone 16 Pro\",\"productSlug\":\"iphone-16-pro\",\"variantName\":\"512 GB / Natural Titanium\",\"imageUrl\":null,\"unitPriceMinor\":149900,\"currency\":\"EUR\",\"quantity\":2,\"lineTotalMinor\":299800,\"available\":15,\"status\":\"OK\"}],\"itemCount\":2,\"subtotalMinor\":299800,\"currency\":\"EUR\",\"hasIssues\":false}"
+                },
+                {
+                  "name": "400 Invalid body or more than 10 units",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"quantity\"],\"message\":\"Too big\"}]}"
+                },
+                {
+                  "name": "401 Missing x-user-id",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                },
+                {
+                  "name": "404 Variant not found or deactivated",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Variant not found or no longer available\",\"error\":\"Not Found\"}"
+                },
+                {
+                  "name": "409 Not enough stock",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"error\":\"Conflict\",\"message\":\"Not enough stock available\",\"available\":3,\"requested\":5,\"inCart\":2}"
+                }
+              ]
+            },
+            {
+              "name": "Add same item again (increments to 3)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('still one line, quantity now 3', () => { pm.expect(b.items).to.have.lengthOf(1); pm.expect(b.items[0].quantity).to.eql(3); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"variantId\": \"{{variantId}}\",\n  \"quantity\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[{\"variantId\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"quantity\":3,\"lineTotalMinor\":449700,\"available\":15,\"status\":\"OK\"}],\"itemCount\":3,\"subtotalMinor\":449700,\"currency\":\"EUR\",\"hasIssues\":false}"
+                }
+              ]
+            },
+            {
+              "name": "Add second item",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('two lines, 4 units', () => { pm.expect(b.items).to.have.lengthOf(2); pm.expect(b.itemCount).to.eql(4); });",
+                      "pm.test('subtotal is the sum of line totals', () => pm.expect(b.subtotalMinor).to.eql(b.items.reduce((s, i) => s + i.lineTotalMinor, 0)));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"variantId\": \"{{variantId2}}\",\n  \"quantity\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[{\"sku\":\"IP16P-512-NAT\",\"quantity\":3,\"status\":\"OK\"},{\"sku\":\"S24U-256-GRY\",\"quantity\":1,\"status\":\"OK\"}],\"itemCount\":4,\"subtotalMinor\":579600,\"currency\":\"EUR\",\"hasIssues\":false}"
+                }
+              ]
+            },
+            {
+              "name": "Add item (400 quantity above 10)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 400', () => pm.response.to.have.status(400));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"variantId\": \"{{variantId}}\",\n  \"quantity\": 11\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items"
+              },
+              "response": [
+                {
+                  "name": "400 Too big",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"quantity\"],\"message\":\"Too big\"}]}"
+                }
+              ]
+            },
+            {
+              "name": "Add item (404 unknown variant)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 404', () => pm.response.to.have.status(404));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"variantId\": \"0192f5c4-0000-7000-8000-00000000dead\",\n  \"quantity\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items"
+              },
+              "response": [
+                {
+                  "name": "404 Not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Variant not found or no longer available\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Update quantity (to 1)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "const line = b.items.find(i => i.variantId === pm.collectionVariables.get('variantId'));",
+                      "pm.test('line quantity is 1', () => pm.expect(line.quantity).to.eql(1));",
+                      "pm.test('item count updated', () => pm.expect(b.itemCount).to.eql(2));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quantity\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items/{{variantId}}"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[{\"sku\":\"IP16P-512-NAT\",\"quantity\":1,\"status\":\"OK\"},{\"sku\":\"S24U-256-GRY\",\"quantity\":1,\"status\":\"OK\"}],\"itemCount\":2,\"subtotalMinor\":279800,\"currency\":\"EUR\",\"hasIssues\":false}"
+                },
+                {
+                  "name": "400 Quantity out of range",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"quantity\"],\"message\":\"Too small\"}]}"
+                },
+                {
+                  "name": "401 Missing x-user-id",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                },
+                {
+                  "name": "404 Item not in cart",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Item not in cart\",\"error\":\"Not Found\"}"
+                },
+                {
+                  "name": "409 Not enough stock",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"error\":\"Conflict\",\"message\":\"Not enough stock available\",\"available\":3,\"requested\":8,\"inCart\":2}"
+                }
+              ]
+            },
+            {
+              "name": "Update quantity (404 item not in cart)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 404', () => pm.response.to.have.status(404));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quantity\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items/0192f5c4-0000-7000-8000-00000000dead"
+              },
+              "response": [
+                {
+                  "name": "404 Item not in cart",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Item not in cart\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Get cart (totals)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('two lines, all OK', () => { pm.expect(b.items).to.have.lengthOf(2); pm.expect(b.items.every(i => i.status === 'OK')).to.be.true; pm.expect(b.hasIssues).to.be.false; });",
+                      "pm.test('totals are consistent', () => {",
+                      "  pm.expect(b.items.every(i => i.lineTotalMinor === i.unitPriceMinor * i.quantity)).to.be.true;",
+                      "  pm.expect(b.subtotalMinor).to.eql(b.items.reduce((s, i) => s + i.lineTotalMinor, 0));",
+                      "  pm.expect(b.itemCount).to.eql(b.items.reduce((s, i) => s + i.quantity, 0));",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/cart"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[{\"variantId\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"unitPriceMinor\":149900,\"quantity\":1,\"lineTotalMinor\":149900,\"available\":15,\"status\":\"OK\"},{\"variantId\":\"0192f5c4-0000-7000-8000-000000000203\",\"sku\":\"S24U-256-GRY\",\"unitPriceMinor\":129900,\"quantity\":1,\"lineTotalMinor\":129900,\"available\":20,\"status\":\"OK\"}],\"itemCount\":2,\"subtotalMinor\":279800,\"currency\":\"EUR\",\"hasIssues\":false}"
+                }
+              ]
+            },
+            {
+              "name": "Remove item",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('only the other line remains', () => { pm.expect(b.items).to.have.lengthOf(1); pm.expect(b.items[0].variantId).to.eql(pm.collectionVariables.get('variantId2')); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/cart/items/{{variantId}}"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[{\"sku\":\"S24U-256-GRY\",\"quantity\":1,\"status\":\"OK\"}],\"itemCount\":1,\"subtotalMinor\":129900,\"currency\":\"EUR\",\"hasIssues\":false}"
+                },
+                {
+                  "name": "401 Missing x-user-id",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                },
+                {
+                  "name": "404 Item not in cart",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Item not in cart\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Remove item again (404)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 404', () => pm.response.to.have.status(404));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/cart/items/{{variantId}}"
+              },
+              "response": [
+                {
+                  "name": "404 Item not in cart",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Item not in cart\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Clear cart",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "pm.test('cart is empty', () => { const b = pm.response.json(); pm.expect(b.items).to.eql([]); pm.expect(b.subtotalMinor).to.eql(0); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/cart"
+              },
+              "response": [
+                {
+                  "name": "200 Empty cart",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[],\"itemCount\":0,\"subtotalMinor\":0,\"currency\":\"EUR\",\"hasIssues\":false}"
+                }
+              ]
             }
           ]
         }

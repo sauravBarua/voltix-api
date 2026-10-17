@@ -8,6 +8,7 @@ import { validateEnv } from './config/env';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { CartModule } from './cart/cart.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { InventoryModule } from './inventory/inventory.module';
     HealthModule,
     CatalogModule,
     InventoryModule,
+    CartModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
