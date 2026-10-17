@@ -1,9 +1,11 @@
+import { Roles } from '../auth/access.decorators';
 import { Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ExpireResultDto, ListReservationsDto, ReservationListDto } from './reservations.dto';
 import { ReservationsService } from './reservations.service';
 
 @ApiTags('Reservations')
+@Roles('INVENTORY_OPERATOR', 'ADMIN')
 @Controller('reservations')
 export class ReservationsController {
   constructor(private readonly service: ReservationsService) {}

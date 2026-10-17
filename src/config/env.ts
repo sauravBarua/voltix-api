@@ -31,6 +31,11 @@ export const envSchema = z
       .default('redis://localhost:6379'),
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
     RATE_LIMIT_ENABLED: z.stringbool().optional(),
+    JWT_ACCESS_SECRET: z
+      .string()
+      .min(32, 'must be at least 32 characters (generate it, never type it)'),
+    ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   })
   .refine((e) => e.NODE_ENV === 'production' || !e.STRIPE_SECRET_KEY.includes('_live_'), {
     message: 'Live Stripe keys are not allowed outside production',

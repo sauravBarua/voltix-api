@@ -7,6 +7,7 @@ const base = {
   CLOUDINARY_API_SECRET: 'secret',
   STRIPE_SECRET_KEY: 'sk_test_dummy',
   STRIPE_WEBHOOK_SECRET: 'whsec_dummy',
+  JWT_ACCESS_SECRET: 'a'.repeat(32),
 };
 
 describe('validateEnv', () => {
@@ -19,6 +20,8 @@ describe('validateEnv', () => {
       RABBITMQ_URL: 'amqp://voltix:voltix@localhost:5672',
       REDIS_URL: 'redis://localhost:6379',
       TRUST_PROXY_HOPS: 0,
+      ACCESS_TOKEN_TTL_MINUTES: 15,
+      REFRESH_TOKEN_TTL_DAYS: 30,
       ...base,
     });
   });
@@ -93,5 +96,12 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...base, TRUST_PROXY_HOPS: '9' })).toThrow(/TRUST_PROXY_HOPS/);
     expect(validateEnv({ ...base, RATE_LIMIT_ENABLED: 'false' }).RATE_LIMIT_ENABLED).toBe(false);
     expect(validateEnv(base).RATE_LIMIT_ENABLED).toBeUndefined();
+  });
+
+  it('requires a strong JWT secret', () => {
+    expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: undefined })).toThrow(
+      /JWT_ACCESS_SECRET/,
+    );
+    expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: 'short' })).toThrow(/JWT_ACCESS_SECRET/);
   });
 });

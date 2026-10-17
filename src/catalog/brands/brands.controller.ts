@@ -1,3 +1,4 @@
+import { Public, Roles } from '../../auth/access.decorators';
 import {
   Body,
   Controller,
@@ -25,6 +26,7 @@ import { BrandDto, CreateBrandDto, UpdateBrandDto } from './brands.dto';
 import { BrandsService } from './brands.service';
 
 @ApiTags('Brands')
+@Roles('ADMIN')
 @Controller('brands')
 @UseInterceptors(CatalogInvalidationInterceptor)
 export class BrandsController {
@@ -33,6 +35,7 @@ export class BrandsController {
     private readonly cache: CatalogCacheService,
   ) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'List brands (public)' })
   @ApiOkResponse({ type: [BrandDto] })

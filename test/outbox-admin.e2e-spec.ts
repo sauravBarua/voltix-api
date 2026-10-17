@@ -6,6 +6,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { API_PREFIX, configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TestAuth } from './helpers/auth';
 
 type EventBody = {
   id: string;
@@ -17,6 +18,7 @@ type EventBody = {
 
 describe('Outbox admin (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   let prisma: PrismaService;
   const type = `e2e.admin.${Date.now().toString(36)}`;
 
@@ -25,6 +27,7 @@ describe('Outbox admin (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
     prisma = app.get(PrismaService);
   });
 
@@ -34,6 +37,12 @@ describe('Outbox admin (e2e)', () => {
   });
 
   const url = (p: string) => `/${API_PREFIX}/admin/outbox${p}`;
+  const api = () => ({
+    get: (p: string) => request(app.getHttpServer()).get(p).set(auth.header()),
+    post: (p: string) => request(app.getHttpServer()).post(p).set(auth.header()),
+    patch: (p: string) => request(app.getHttpServer()).patch(p).set(auth.header()),
+    delete: (p: string) => request(app.getHttpServer()).delete(p).set(auth.header()),
+  });
   const failedRow = () =>
     prisma.outboxEvent.create({
       data: {
@@ -50,7 +59,7 @@ describe('Outbox admin (e2e)', () => {
 
   it('summarizes the outbox', async () => {
     await failedRow();
-    const res = await request(app.getHttpServer()).get(url('/summary')).expect(200);
+    const res = await api().get(url('/summary')).expect(200);
     const body = res.body as {
       pending: number;
       published: number;
@@ -64,32 +73,29 @@ describe('Outbox admin (e2e)', () => {
 
   it('lists events with filters and validates the query', async () => {
     const row = await failedRow();
-    const res = await request(app.getHttpServer())
-      .get(url(''))
-      .query({ status: 'FAILED', type })
-      .expect(200);
+    const res = await api().get(url('')).query({ status: 'FAILED', type }).expect(200);
     const items = (res.body as { items: EventBody[] }).items;
     expect(items.map((i) => i.id)).toContain(row.id);
     expect(items.every((i) => i.status === 'FAILED' && i.type === type)).toBe(true);
     expect(items.find((i) => i.id === row.id)?.lastError).toBe('boom');
 
-    await request(app.getHttpServer()).get(url('')).query({ status: 'NOPE' }).expect(400);
+    await api().get(url('')).query({ status: 'NOPE' }).expect(400);
   });
 
   it('retries a FAILED event once, refuses others, and 404s unknown ids', async () => {
     const row = await failedRow();
 
-    const res = await request(app.getHttpServer())
+    const res = await api()
       .post(url(`/${row.id}/retry`))
       .expect(200);
     expect(res.body).toMatchObject({ id: row.id, status: 'PENDING', attempts: 0, lastError: null });
 
-    await request(app.getHttpServer())
+    await api()
       .post(url(`/${row.id}/retry`))
       .expect(409); // no longer FAILED
-    await request(app.getHttpServer())
+    await api()
       .post(url(`/${randomUUID()}/retry`))
       .expect(404);
-    await request(app.getHttpServer()).post(url('/not-a-uuid/retry')).expect(400);
+    await api().post(url('/not-a-uuid/retry')).expect(400);
   });
 });

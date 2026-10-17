@@ -1,11 +1,11 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { API_PREFIX, configureApp } from '../src/app.setup';
+import { configureApp } from '../src/app.setup';
 import { RabbitMqService } from '../src/messaging/rabbitmq.service';
 import { WorkerModule } from '../src/worker.module';
+import { TestAuth } from './helpers/auth';
 
 jest.setTimeout(40_000);
 
@@ -13,6 +13,7 @@ type Ref = { id: string; slug: string };
 
 describe('Availability invalidation through trigger, outbox, RabbitMQ and consumer (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   let worker: TestingModule;
   const suffix = Date.now().toString(36).toUpperCase();
 
@@ -21,6 +22,7 @@ describe('Availability invalidation through trigger, outbox, RabbitMQ and consum
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
 
     worker = await Test.createTestingModule({ imports: [WorkerModule] }).compile();
     await worker.init();
@@ -32,14 +34,7 @@ describe('Availability invalidation through trigger, outbox, RabbitMQ and consum
     await app?.close();
   });
 
-  const http = () => {
-    const server = app.getHttpServer();
-    const url = (p: string) => `/${API_PREFIX}${p}`;
-    return {
-      get: (p: string) => request(server).get(url(p)),
-      post: (p: string) => request(server).post(url(p)),
-    };
-  };
+  const http = () => auth.api();
 
   it('shows new stock within seconds, long before the 30 s cache TTL', async () => {
     const brands = (await http().get('/brands').expect(200)).body as Ref[];

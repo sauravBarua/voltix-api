@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { API_PREFIX, configureApp } from '../src/app.setup';
+import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ReservationsService } from '../src/reservations/reservations.service';
+import { TestAuth } from './helpers/auth';
 
 type Ref = { id: string; slug: string };
 type ListBody = {
@@ -16,6 +16,7 @@ type ListBody = {
 
 describe('Reservations (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   let prisma: PrismaService;
   let reservations: ReservationsService;
   let brandId: string;
@@ -30,6 +31,7 @@ describe('Reservations (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
     prisma = app.get(PrismaService);
     reservations = app.get(ReservationsService);
 
@@ -53,14 +55,7 @@ describe('Reservations (e2e)', () => {
     await app.close();
   });
 
-  const api = () => {
-    const server = app.getHttpServer();
-    const url = (p: string) => `/${API_PREFIX}${p}`;
-    return {
-      get: (p: string) => request(server).get(url(p)),
-      post: (p: string) => request(server).post(url(p)),
-    };
-  };
+  const api = (userId?: string) => auth.api(userId);
 
   /** A fresh active variant with `stock` units on hand (through the real endpoints). */
   const createVariant = async (stock: number) => {

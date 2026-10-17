@@ -1,29 +1,21 @@
-import { Controller, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, HttpCode, Param, Post } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiConflictResponse,
-  ApiHeader,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Authenticated } from '../auth/access.decorators';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator';
-import { DevUserGuard } from '../common/auth/dev-user.guard';
 import { IdParamDto } from '../common/schemas';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { PayResultDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
 @ApiTags('Payments')
-@ApiHeader({
-  name: 'x-user-id',
-  required: true,
-  description: 'TEMPORARY until Phase 13: id of the shopper (dev/test only, refused in production)',
-})
-@ApiUnauthorizedResponse({ description: 'Missing, invalid or unknown x-user-id' })
-@UseGuards(DevUserGuard)
+@Authenticated()
 @Controller('orders')
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}

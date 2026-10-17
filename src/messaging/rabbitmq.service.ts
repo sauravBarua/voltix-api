@@ -112,7 +112,7 @@ export class RabbitMqService implements OnModuleInit, OnApplicationShutdown {
           this.logger.error(`RabbitMQ publish channel error: ${error.message}`),
         );
         channel.on('return', (message: ConsumeMessage) => {
-          const id = message.properties.messageId;
+          const id: unknown = message.properties.messageId;
           if (typeof id === 'string') this.returned.add(id);
         });
         await channel.assertExchange(EVENTS_EXCHANGE, 'topic', { durable: true });

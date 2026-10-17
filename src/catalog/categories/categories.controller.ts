@@ -1,3 +1,4 @@
+import { Public, Roles } from '../../auth/access.decorators';
 import {
   Body,
   Controller,
@@ -25,6 +26,7 @@ import { CategoriesService } from './categories.service';
 import { CategoryDto, CreateCategoryDto, UpdateCategoryDto } from './categories.dto';
 
 @ApiTags('Categories')
+@Roles('ADMIN')
 @Controller('categories')
 @UseInterceptors(CatalogInvalidationInterceptor)
 export class CategoriesController {
@@ -33,6 +35,7 @@ export class CategoriesController {
     private readonly cache: CatalogCacheService,
   ) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'List categories (public)' })
   @ApiOkResponse({ type: [CategoryDto] })

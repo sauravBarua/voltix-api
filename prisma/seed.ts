@@ -1,6 +1,12 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient, Role } from '../src/generated/prisma/client';
+import { hashPassword } from '../src/auth/password';
+
+const seedPassword = process.env.SEED_PASSWORD ?? 'Voltix-Dev-1234!';
+if (process.env.NODE_ENV === 'production' && !process.env.SEED_PASSWORD) {
+  throw new Error('Set SEED_PASSWORD: the default seed password must never be used in production');
+}
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is not set');
@@ -252,8 +258,18 @@ async function main() {
   for (const b of brands) {
     await prisma.brand.upsert({ where: { slug: b.slug }, update: { name: b.name }, create: b });
   }
+  const passwordHash = await hashPassword(seedPassword);
   for (const u of users) {
-    await prisma.user.upsert({ where: { email: u.email }, update: {}, create: u });
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: {},
+      create: { ...u, passwordHash },
+    });
+    // Users created before Phase 13 have no password yet: give them one, never overwrite an existing one
+    await prisma.user.updateMany({
+      where: { email: u.email, passwordHash: null },
+      data: { passwordHash },
+    });
   }
 
   for (const p of products) {

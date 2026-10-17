@@ -1,3 +1,4 @@
+import { Roles } from '../auth/access.decorators';
 import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   ApiConflictResponse,
@@ -12,6 +13,7 @@ import { OutboxAdminService } from './outbox-admin.service';
 
 // No guard until Phase 13 (administrator only afterwards)
 @ApiTags('Admin outbox')
+@Roles('ADMIN')
 @Controller('admin/outbox')
 export class OutboxAdminController {
   constructor(private readonly service: OutboxAdminService) {}

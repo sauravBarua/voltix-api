@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { API_PREFIX, configureApp } from '../src/app.setup';
+import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TestAuth } from './helpers/auth';
 
 type Ref = { id: string; slug: string };
 type Stock = {
@@ -24,6 +24,7 @@ type ListBody = { items: { variantId: string; lowStock: boolean }[]; meta: { tot
 
 describe('Inventory (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   let prisma: PrismaService;
   let brandId: string;
   let categoryId: string;
@@ -36,6 +37,7 @@ describe('Inventory (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
     prisma = app.get(PrismaService);
 
     const brands = (await http().get('/brands').expect(200)).body as Ref[];
@@ -48,15 +50,7 @@ describe('Inventory (e2e)', () => {
     await app.close();
   });
 
-  const http = () => {
-    const server = app.getHttpServer();
-    const url = (p: string) => `/${API_PREFIX}${p}`;
-    return {
-      get: (p: string) => request(server).get(url(p)),
-      post: (p: string) => request(server).post(url(p)),
-      patch: (p: string) => request(server).patch(url(p)),
-    };
-  };
+  const http = () => auth.api();
 
   /** A fresh variant with zero stock (created through the real catalog endpoints). */
   const createVariant = async () => {

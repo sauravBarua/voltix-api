@@ -67,7 +67,9 @@ export const ModelName = {
   Payment: 'Payment',
   StripeWebhookEvent: 'StripeWebhookEvent',
   OutboxEvent: 'OutboxEvent',
-  ProcessedMessage: 'ProcessedMessage'
+  ProcessedMessage: 'ProcessedMessage',
+  RefreshToken: 'RefreshToken',
+  AuditLog: 'AuditLog'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -91,6 +93,8 @@ export const UserScalarFieldEnum = {
   email: 'email',
   name: 'name',
   role: 'role',
+  passwordHash: 'passwordHash',
+  isActive: 'isActive',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -323,6 +327,38 @@ export const ProcessedMessageScalarFieldEnum = {
 } as const
 
 export type ProcessedMessageScalarFieldEnum = (typeof ProcessedMessageScalarFieldEnum)[keyof typeof ProcessedMessageScalarFieldEnum]
+
+
+export const RefreshTokenScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  familyId: 'familyId',
+  tokenHash: 'tokenHash',
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt',
+  userAgent: 'userAgent',
+  ip: 'ip',
+  createdAt: 'createdAt'
+} as const
+
+export type RefreshTokenScalarFieldEnum = (typeof RefreshTokenScalarFieldEnum)[keyof typeof RefreshTokenScalarFieldEnum]
+
+
+export const AuditLogScalarFieldEnum = {
+  id: 'id',
+  actorId: 'actorId',
+  actorEmail: 'actorEmail',
+  actorRole: 'actorRole',
+  action: 'action',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  outcome: 'outcome',
+  ip: 'ip',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type AuditLogScalarFieldEnum = (typeof AuditLogScalarFieldEnum)[keyof typeof AuditLogScalarFieldEnum]
 
 
 export const SortOrder = {

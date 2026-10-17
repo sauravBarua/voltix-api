@@ -168,15 +168,18 @@ export class ConsumerRunner {
     msg: ConsumeMessage,
     options: Options.Publish,
   ) {
+    const contentType: unknown = msg.properties.contentType;
+    const messageId: unknown = msg.properties.messageId;
+    const type: unknown = msg.properties.type;
     return new Promise<void>((resolve, reject) => {
       channel.sendToQueue(
         queue,
         msg.content,
         {
           persistent: true,
-          contentType: msg.properties.contentType,
-          messageId: msg.properties.messageId,
-          type: msg.properties.type,
+          contentType: typeof contentType === 'string' ? contentType : undefined,
+          messageId: typeof messageId === 'string' ? messageId : undefined,
+          type: typeof type === 'string' ? type : undefined,
           ...options,
         },
         (error) =>

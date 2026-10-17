@@ -1,3 +1,4 @@
+import { Public, Roles } from '../../auth/access.decorators';
 import {
   Body,
   Controller,
@@ -54,6 +55,7 @@ const createExample = JSON.stringify({
 const updateExample = JSON.stringify({ description: 'New text', removeImageIds: ['<image uuid>'] });
 
 @ApiTags('Products')
+@Roles('ADMIN')
 @Controller('products')
 @UseInterceptors(CatalogInvalidationInterceptor)
 export class ProductsController {
@@ -62,6 +64,7 @@ export class ProductsController {
     private readonly cache: CatalogCacheService,
   ) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Search and filter products (public)' })
   @ApiOkResponse({ type: ProductListDto })
@@ -70,6 +73,7 @@ export class ProductsController {
     return this.cache.listProducts(query);
   }
 
+  @Public()
   @Get(':slug')
   @ApiOperation({ summary: 'Product detail with active variants (public)' })
   @ApiOkResponse({ type: ProductDetailDto })

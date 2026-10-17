@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { API_PREFIX, configureApp } from '../src/app.setup';
+import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ReservationsService } from '../src/reservations/reservations.service';
+import { TestAuth } from './helpers/auth';
 
 type Ref = { id: string; slug: string };
 type OrderBody = {
@@ -43,6 +43,7 @@ const address = {
 
 describe('Orders (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   let prisma: PrismaService;
   let reservations: ReservationsService;
   let brandId: string;
@@ -57,6 +58,7 @@ describe('Orders (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
     prisma = app.get(PrismaService);
     reservations = app.get(ReservationsService);
 
@@ -80,26 +82,10 @@ describe('Orders (e2e)', () => {
     await app.close();
   });
 
-  /** Requests under /api/v1, optionally as a given user (temporary x-user-id header). */
-  const api = (userId?: string) => {
-    const server = app.getHttpServer();
-    const url = (p: string) => `/${API_PREFIX}${p}`;
-    const as = (t: request.Test) => (userId ? t.set('x-user-id', userId) : t);
-    return {
-      get: (p: string) => as(request(server).get(url(p))),
-      post: (p: string) => as(request(server).post(url(p))),
-      patch: (p: string) => as(request(server).patch(url(p))),
-      delete: (p: string) => as(request(server).delete(url(p))),
-    };
-  };
+  /** Requests under /api/v1, optionally as a given user (bearer token). */
+  const api = (userId?: string) => auth.api(userId);
 
-  const createUser = async () =>
-    (
-      await prisma.user.create({
-        data: { email: `orders-${suffix}-${++counter}@voltix.test`, name: 'Orders Test' },
-        select: { id: true },
-      })
-    ).id;
+  const createUser = () => auth.createUser('CUSTOMER');
 
   /** A fresh active variant with `stock` units on hand. */
   const createVariant = async (stock: number, priceMinor = 1000) => {
@@ -163,7 +149,7 @@ describe('Orders (e2e)', () => {
     });
 
   it('requires auth, an Idempotency-Key and a valid address', async () => {
-    await api().post('/orders/checkout').send({ shippingAddress: address }).expect(401);
+    await auth.api('anon').post('/orders/checkout').send({ shippingAddress: address }).expect(401);
 
     const user = await createUser();
     await addToCart(user, await createVariant(5), 1);

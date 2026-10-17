@@ -1,9 +1,9 @@
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { API_PREFIX, configureApp } from '../src/app.setup';
+import { configureApp } from '../src/app.setup';
+import { TestAuth } from './helpers/auth';
 
 type ListBody = {
   items: { slug: string; brand: { slug: string }; priceFromMinor: number }[];
@@ -13,6 +13,7 @@ type Ref = { id: string; slug: string };
 
 describe('Catalog (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   const suffix = Date.now().toString(36);
 
   beforeAll(async () => {
@@ -20,6 +21,7 @@ describe('Catalog (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
   });
 
   afterAll(async () => {
@@ -27,16 +29,7 @@ describe('Catalog (e2e)', () => {
   });
 
   // All routes live under /api/v1
-  const http = () => {
-    const server = app.getHttpServer();
-    const url = (path: string) => `/${API_PREFIX}${path}`;
-    return {
-      get: (p: string) => request(server).get(url(p)),
-      post: (p: string) => request(server).post(url(p)),
-      patch: (p: string) => request(server).patch(url(p)),
-      delete: (p: string) => request(server).delete(url(p)),
-    };
-  };
+  const http = () => auth.api();
   const list = async (query: Record<string, string>) =>
     (await http().get('/products').query(query).expect(200)).body as ListBody;
 

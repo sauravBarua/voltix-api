@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { API_PREFIX, configureApp } from '../src/app.setup';
+import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TestAuth } from './helpers/auth';
 
 type Ref = { id: string; slug: string };
 type Line = {
@@ -26,6 +26,7 @@ type CartBody = {
 
 describe('Cart (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   let prisma: PrismaService;
   let brandId: string;
   let categoryId: string;
@@ -38,6 +39,7 @@ describe('Cart (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
     prisma = app.get(PrismaService);
 
     const brands = (await api().get('/brands').expect(200)).body as Ref[];
@@ -50,26 +52,10 @@ describe('Cart (e2e)', () => {
     await app.close();
   });
 
-  /** Requests under /api/v1, optionally as a given user (temporary x-user-id header). */
-  const api = (userId?: string) => {
-    const server = app.getHttpServer();
-    const url = (p: string) => `/${API_PREFIX}${p}`;
-    const as = (t: request.Test) => (userId ? t.set('x-user-id', userId) : t);
-    return {
-      get: (p: string) => as(request(server).get(url(p))),
-      post: (p: string) => as(request(server).post(url(p))),
-      patch: (p: string) => as(request(server).patch(url(p))),
-      delete: (p: string) => as(request(server).delete(url(p))),
-    };
-  };
+  /** Requests under /api/v1, optionally as a given user (bearer token). */
+  const api = (userId?: string) => auth.api(userId);
 
-  const createUser = async () => {
-    const user = await prisma.user.create({
-      data: { email: `cart-${suffix}-${++counter}@voltix.test`, name: 'Cart Test' },
-      select: { id: true },
-    });
-    return user.id;
-  };
+  const createUser = () => auth.createUser('CUSTOMER');
 
   /** A fresh active variant priced at 1000, with `stock` units on hand. */
   const createVariant = async (stock: number) => {
@@ -105,10 +91,9 @@ describe('Cart (e2e)', () => {
   const add = (userId: string, variantId: string, quantity: number) =>
     api(userId).post('/cart/items').send({ variantId, quantity });
 
-  it('requires a valid x-user-id header (401)', async () => {
-    await api().get('/cart').expect(401);
-    await api('not-a-uuid').get('/cart').expect(401);
-    await api(randomUUID()).get('/cart').expect(401);
+  it('requires a valid bearer token (401)', async () => {
+    await auth.api('anon').get('/cart').expect(401);
+    await auth.api('anon').get('/cart').set('Authorization', 'Bearer not-a-jwt').expect(401);
   });
 
   it('returns an empty cart (without creating one) for a new user', async () => {

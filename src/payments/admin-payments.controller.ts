@@ -1,3 +1,4 @@
+import { Roles } from '../auth/access.decorators';
 import { Body, Controller, Headers, HttpCode, Param, Post } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
@@ -17,6 +18,7 @@ import { PaymentsService } from './payments.service';
 
 // No guard until Phase 13 (administrator only afterwards)
 @ApiTags('Admin payments')
+@Roles('ADMIN')
 @Controller('admin/orders')
 export class AdminPaymentsController {
   constructor(private readonly service: PaymentsService) {}

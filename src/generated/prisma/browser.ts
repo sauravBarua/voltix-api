@@ -102,3 +102,13 @@ export type OutboxEvent = Prisma.OutboxEventModel
  * 
  */
 export type ProcessedMessage = Prisma.ProcessedMessageModel
+/**
+ * Model RefreshToken
+ * 
+ */
+export type RefreshToken = Prisma.RefreshTokenModel
+/**
+ * Model AuditLog
+ * 
+ */
+export type AuditLog = Prisma.AuditLogModel

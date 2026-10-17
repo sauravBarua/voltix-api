@@ -1,3 +1,4 @@
+import { Roles } from '../../auth/access.decorators';
 import {
   Body,
   Controller,
@@ -46,6 +47,7 @@ const createExample = JSON.stringify({
 const updateExample = JSON.stringify({ priceMinor: 139900 });
 
 @ApiTags('Variants')
+@Roles('ADMIN')
 @Controller()
 @UseInterceptors(CatalogInvalidationInterceptor)
 export class VariantsController {

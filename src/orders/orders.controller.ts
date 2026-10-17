@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, Res } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -8,11 +8,10 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { Authenticated } from '../auth/access.decorators';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator';
-import { DevUserGuard } from '../common/auth/dev-user.guard';
 import { IdParamDto } from '../common/schemas';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import {
@@ -26,13 +25,7 @@ import { OrdersService } from './orders.service';
 import { parseIdempotencyKey } from './orders.utils';
 
 @ApiTags('Orders')
-@ApiHeader({
-  name: 'x-user-id',
-  required: true,
-  description: 'TEMPORARY until Phase 13: id of the shopper (dev/test only, refused in production)',
-})
-@ApiUnauthorizedResponse({ description: 'Missing, invalid or unknown x-user-id' })
-@UseGuards(DevUserGuard)
+@Authenticated()
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly service: OrdersService) {}

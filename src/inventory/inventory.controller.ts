@@ -1,3 +1,4 @@
+import { Roles } from '../auth/access.decorators';
 import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -25,6 +26,7 @@ import {
 import { InventoryService } from './inventory.service';
 
 @ApiTags('Inventory')
+@Roles('INVENTORY_OPERATOR', 'ADMIN')
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly service: InventoryService) {}

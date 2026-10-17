@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
 import type { Env } from '../config/env';
 import { RATE_LIMIT_OPTIONS, type RateLimitOptions } from './rate-limit.constants';
-import { RateLimitGuard } from './rate-limit.guard';
 
 @Module({
   providers: [
@@ -16,7 +14,7 @@ import { RateLimitGuard } from './rate-limit.guard';
           config.get('NODE_ENV', { infer: true }) !== 'test',
       }),
     },
-    { provide: APP_GUARD, useClass: RateLimitGuard },
   ],
+  exports: [RATE_LIMIT_OPTIONS],
 })
 export class RateLimitModule {}

@@ -6,6 +6,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { API_PREFIX, configureApp } from '../src/app.setup';
 import { CloudinaryService } from '../src/media/cloudinary.service';
+import { TestAuth } from './helpers/auth';
 
 class FakeCloudinary {
   uploaded: string[] = [];
@@ -36,6 +37,7 @@ type Detail = { id: string; slug: string; images: Img[] };
 
 describe('Media (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   const fake = new FakeCloudinary();
   const suffix = Date.now().toString(36);
   let brandId: string;
@@ -50,6 +52,7 @@ describe('Media (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
 
     const server = app.getHttpServer();
     const brands = (await request(server).get(`/${API_PREFIX}/brands`).expect(200)).body as Ref[];
@@ -64,6 +67,12 @@ describe('Media (e2e)', () => {
   });
 
   const url = (p: string) => `/${API_PREFIX}${p}`;
+  const api = () => ({
+    get: (p: string) => request(app.getHttpServer()).get(p).set(auth.header()),
+    post: (p: string) => request(app.getHttpServer()).post(p).set(auth.header()),
+    patch: (p: string) => request(app.getHttpServer()).patch(p).set(auth.header()),
+    delete: (p: string) => request(app.getHttpServer()).delete(p).set(auth.header()),
+  });
   const specs = { cpu: 'Test CPU', screenSizeInch: 15.6, os: 'Windows 11' };
   const productData = (extra: Record<string, unknown> = {}) =>
     JSON.stringify({
@@ -76,7 +85,7 @@ describe('Media (e2e)', () => {
 
   it('creates a product with two images, the first one primary', async () => {
     const before = fake.uploaded.length;
-    const res = await request(app.getHttpServer())
+    const res = await api()
       .post(url('/products'))
       .field('data', productData())
       .attach('images', PNG, png)
@@ -98,7 +107,7 @@ describe('Media (e2e)', () => {
       Buffer.from('mif1'),
       Buffer.from('avif'),
     ]);
-    const res = await request(app.getHttpServer())
+    const res = await api()
       .post(url('/products'))
       .field('data', productData())
       .attach('images', avif, { filename: 'image.avif', contentType: 'image/avif' })
@@ -107,15 +116,12 @@ describe('Media (e2e)', () => {
   });
 
   it('rejects missing or invalid data with 400', async () => {
-    await request(app.getHttpServer()).post(url('/products')).field('data', '{oops').expect(400);
-    await request(app.getHttpServer())
-      .post(url('/products'))
-      .attach('images', PNG, png)
-      .expect(400);
+    await api().post(url('/products')).field('data', '{oops').expect(400);
+    await api().post(url('/products')).attach('images', PNG, png).expect(400);
   });
 
   it('rejects a wrong file field name with 400', async () => {
-    await request(app.getHttpServer())
+    await api()
       .post(url('/products'))
       .field('data', productData())
       .attach('image', PNG, png)
@@ -124,13 +130,13 @@ describe('Media (e2e)', () => {
 
   it('rejects non-image files with 415 and uploads nothing', async () => {
     const before = fake.uploaded.length;
-    await request(app.getHttpServer())
+    await api()
       .post(url('/products'))
       .field('data', productData())
       .attach('images', Buffer.from('hello'), { filename: 'a.txt', contentType: 'text/plain' })
       .expect(415);
     // Text bytes pretending to be a PNG: caught by the magic-byte check
-    await request(app.getHttpServer())
+    await api()
       .post(url('/products'))
       .field('data', productData())
       .attach('images', Buffer.from('not really a png at all'), png)
@@ -140,7 +146,7 @@ describe('Media (e2e)', () => {
 
   it('rejects files over 5 MB with 413', async () => {
     const big = Buffer.concat([PNG.subarray(0, 8), Buffer.alloc(6 * 1024 * 1024)]);
-    await request(app.getHttpServer())
+    await api()
       .post(url('/products'))
       .field('data', productData())
       .attach('images', big, png)
@@ -149,7 +155,7 @@ describe('Media (e2e)', () => {
 
   it('validates specs before uploading (invalid specs upload nothing)', async () => {
     const before = fake.uploaded.length;
-    await request(app.getHttpServer())
+    await api()
       .post(url('/products'))
       .field('data', productData({ specs: { cpu: 'only' } }))
       .attach('images', PNG, png)
@@ -159,13 +165,10 @@ describe('Media (e2e)', () => {
 
   it('deletes freshly uploaded assets when the DB write fails (no orphans)', async () => {
     const slug = `media-dup-${suffix}`;
-    await request(app.getHttpServer())
-      .post(url('/products'))
-      .field('data', productData({ slug }))
-      .expect(201);
+    await api().post(url('/products')).field('data', productData({ slug })).expect(201);
 
     const before = fake.uploaded.length;
-    await request(app.getHttpServer())
+    await api()
       .post(url('/products'))
       .field('data', productData({ slug }))
       .attach('images', PNG, png)
@@ -177,7 +180,7 @@ describe('Media (e2e)', () => {
 
   it('replaces an image on update and deletes the old asset after commit', async () => {
     const created = (
-      await request(app.getHttpServer())
+      await api()
         .post(url('/products'))
         .field('data', productData())
         .attach('images', PNG, png)
@@ -186,7 +189,7 @@ describe('Media (e2e)', () => {
     const old = created.images[0];
 
     const updated = (
-      await request(app.getHttpServer())
+      await api()
         .patch(url(`/products/${created.id}`))
         .field('data', JSON.stringify({ removeImageIds: [old.id] }))
         .attach('images', PNG, png)
@@ -200,16 +203,12 @@ describe('Media (e2e)', () => {
   });
 
   it('returns 400 for an empty update and for an image of another product', async () => {
-    const created = (
-      await request(app.getHttpServer())
-        .post(url('/products'))
-        .field('data', productData())
-        .expect(201)
-    ).body as Detail;
-    await request(app.getHttpServer())
+    const created = (await api().post(url('/products')).field('data', productData()).expect(201))
+      .body as Detail;
+    await api()
       .patch(url(`/products/${created.id}`))
       .expect(400);
-    await request(app.getHttpServer())
+    await api()
       .patch(url(`/products/${created.id}`))
       .field('data', JSON.stringify({ removeImageIds: [randomUUID()] }))
       .expect(400);
@@ -217,7 +216,7 @@ describe('Media (e2e)', () => {
 
   it('deletes a single product image and promotes the next one to primary', async () => {
     const created = (
-      await request(app.getHttpServer())
+      await api()
         .post(url('/products'))
         .field('data', productData())
         .attach('images', PNG, png)
@@ -226,16 +225,16 @@ describe('Media (e2e)', () => {
     ).body as Detail;
     const [first, second] = created.images;
 
-    await request(app.getHttpServer())
+    await api()
       .delete(url(`/products/${created.id}/images/${first.id}`))
       .expect(204);
-    await request(app.getHttpServer())
+    await api()
       .delete(url(`/products/${created.id}/images/${first.id}`))
       .expect(404);
     expect(fake.destroyed.some((publicId) => first.url.includes(publicId))).toBe(true);
 
     const detail = (
-      await request(app.getHttpServer())
+      await api()
         .get(url(`/products/${created.slug}`))
         .expect(200)
     ).body as Detail;
@@ -246,14 +245,10 @@ describe('Media (e2e)', () => {
   });
 
   it('creates a variant with an image', async () => {
-    const created = (
-      await request(app.getHttpServer())
-        .post(url('/products'))
-        .field('data', productData())
-        .expect(201)
-    ).body as Detail;
+    const created = (await api().post(url('/products')).field('data', productData()).expect(201))
+      .body as Detail;
     const before = fake.uploaded.length;
-    await request(app.getHttpServer())
+    await api()
       .post(url(`/products/${created.id}/variants`))
       .field(
         'data',

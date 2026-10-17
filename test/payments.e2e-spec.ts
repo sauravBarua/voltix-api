@@ -5,10 +5,11 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import Stripe from 'stripe';
 import { AppModule } from '../src/app.module';
-import { API_PREFIX, configureApp } from '../src/app.setup';
+import { configureApp } from '../src/app.setup';
 import { StripeService } from '../src/payments/stripe.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ReservationsService } from '../src/reservations/reservations.service';
+import { TestAuth } from './helpers/auth';
 
 const WEBHOOK_SECRET = 'whsec_e2e_test_secret';
 // Only used for webhook signing helpers: makes no API call
@@ -121,6 +122,7 @@ const address = {
 
 describe('Payments (e2e)', () => {
   let app: INestApplication<App>;
+  let auth: TestAuth;
   let prisma: PrismaService;
   let reservations: ReservationsService;
   let brandId: string;
@@ -143,6 +145,7 @@ describe('Payments (e2e)', () => {
     app = moduleRef.createNestApplication({ rawBody: true });
     configureApp(app);
     await app.init();
+    auth = await TestAuth.create(app);
     prisma = app.get(PrismaService);
     reservations = app.get(ReservationsService);
 
@@ -166,17 +169,7 @@ describe('Payments (e2e)', () => {
     await app.close();
   });
 
-  const api = (userId?: string) => {
-    const server = app.getHttpServer();
-    const url = (p: string) => `/${API_PREFIX}${p}`;
-    const as = (t: request.Test) => (userId ? t.set('x-user-id', userId) : t);
-    return {
-      get: (p: string) => as(request(server).get(url(p))),
-      post: (p: string) => as(request(server).post(url(p))),
-      patch: (p: string) => as(request(server).patch(url(p))),
-      delete: (p: string) => as(request(server).delete(url(p))),
-    };
-  };
+  const api = (userId?: string) => auth.api(userId);
 
   // ── signed webhook helpers (real SDK signing, fake API) ──
   const post = (event: object, signature?: string | null) => {
@@ -231,13 +224,7 @@ describe('Payments (e2e)', () => {
     });
 
   // ── data helpers ──
-  const createUser = async () =>
-    (
-      await prisma.user.create({
-        data: { email: `payments-${suffix}-${++counter}@voltix.test`, name: 'Payments Test' },
-        select: { id: true },
-      })
-    ).id;
+  const createUser = () => auth.createUser('CUSTOMER');
 
   const createVariant = async (stock: number) => {
     const n = ++counter;
@@ -321,7 +308,7 @@ describe('Payments (e2e)', () => {
 
   it('creates a Checkout Session from server-side amounts and extends the reservation hold', async () => {
     const { user, order } = await placeOrder({ qty: 2 });
-    await api().post(`/orders/${order.id}/pay`).expect(401);
+    await auth.api('anon').post(`/orders/${order.id}/pay`).expect(401);
 
     const body = await pay(user, order);
     expect(body.url).toContain('https://checkout.stripe.test/');

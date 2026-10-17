@@ -1,3 +1,4 @@
+import { Public } from '../auth/access.decorators';
 import { BadRequestException, Controller, Headers, HttpCode, Post, Req } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
@@ -10,6 +11,7 @@ import { StripeService } from './stripe.service';
 /** POST /webhooks/stripe (outside /api/v1, see app.setup.ts). Public: authenticated by the signature. */
 @ApiExcludeController()
 @SkipRateLimit()
+@Public()
 @Controller('webhooks')
 export class StripeWebhookController {
   constructor(

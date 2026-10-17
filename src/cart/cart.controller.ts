@@ -1,37 +1,19 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
-  ApiHeader,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Authenticated } from '../auth/access.decorators';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator';
-import { DevUserGuard } from '../common/auth/dev-user.guard';
 import { AddCartItemDto, CartDto, CartVariantParamDto, SetCartItemQuantityDto } from './cart.dto';
 import { CartService } from './cart.service';
 
 @ApiTags('Cart')
-@ApiHeader({
-  name: 'x-user-id',
-  required: true,
-  description: 'TEMPORARY until Phase 13: id of the shopper (dev/test only, refused in production)',
-})
-@ApiUnauthorizedResponse({ description: 'Missing, invalid or unknown x-user-id' })
-@UseGuards(DevUserGuard)
+@Authenticated()
 @Controller('cart')
 export class CartController {
   constructor(private readonly service: CartService) {}
