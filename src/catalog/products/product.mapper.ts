@@ -70,3 +70,42 @@ export function mapProductDetail(p: ProductRow) {
     variants: p.variants.map(mapVariant),
   };
 }
+
+/** Public read shape WITHOUT stock: cacheable. Availability is overlaid per request (CatalogCacheService). */
+export function mapProductStatic(p: ProductRow) {
+  const s = mapProductSummary(p);
+  return {
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    brand: s.brand,
+    category: s.category,
+    imageUrl: s.imageUrl,
+    priceFromMinor: s.priceFromMinor,
+    currency: s.currency,
+    variantIds: p.variants.map((v) => v.id),
+  };
+}
+
+export function mapProductDetailStatic(p: ProductRow) {
+  const d = mapProductDetail(p);
+  return {
+    ...mapProductStatic(p),
+    description: d.description,
+    specs: d.specs,
+    warrantyMonths: d.warrantyMonths,
+    images: d.images,
+    variants: p.variants.map((v) => {
+      const m = mapVariant(v);
+      return {
+        id: m.id,
+        sku: m.sku,
+        name: m.name,
+        attributes: m.attributes,
+        priceMinor: m.priceMinor,
+        currency: m.currency,
+        isActive: m.isActive,
+      };
+    }),
+  };
+}

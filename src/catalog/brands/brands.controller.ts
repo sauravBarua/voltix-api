@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import {
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -9,19 +19,25 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { IdParamDto } from '../../common/schemas';
+import { CatalogCacheService } from '../catalog-cache.service';
+import { CatalogInvalidationInterceptor } from '../catalog-invalidation.interceptor';
 import { BrandDto, CreateBrandDto, UpdateBrandDto } from './brands.dto';
 import { BrandsService } from './brands.service';
 
 @ApiTags('Brands')
 @Controller('brands')
+@UseInterceptors(CatalogInvalidationInterceptor)
 export class BrandsController {
-  constructor(private readonly service: BrandsService) {}
+  constructor(
+    private readonly service: BrandsService,
+    private readonly cache: CatalogCacheService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List brands (public)' })
   @ApiOkResponse({ type: [BrandDto] })
   list() {
-    return this.service.list();
+    return this.cache.brands();
   }
 
   @Post()

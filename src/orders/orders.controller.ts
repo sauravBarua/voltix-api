@@ -14,6 +14,7 @@ import type { Response } from 'express';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator';
 import { DevUserGuard } from '../common/auth/dev-user.guard';
 import { IdParamDto } from '../common/schemas';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import {
   CheckoutDto,
   CheckoutResultDto,
@@ -36,6 +37,7 @@ import { parseIdempotencyKey } from './orders.utils';
 export class OrdersController {
   constructor(private readonly service: OrdersService) {}
 
+  @RateLimit('strict')
   @Post('checkout')
   @ApiOperation({
     summary:

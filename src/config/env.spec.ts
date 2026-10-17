@@ -17,6 +17,8 @@ describe('validateEnv', () => {
       RESERVATION_TTL_MINUTES: 32,
       FRONTEND_URL: 'http://localhost:3001',
       RABBITMQ_URL: 'amqp://voltix:voltix@localhost:5672',
+      REDIS_URL: 'redis://localhost:6379',
+      TRUST_PROXY_HOPS: 0,
       ...base,
     });
   });
@@ -84,5 +86,12 @@ describe('validateEnv', () => {
     expect(
       validateEnv({ ...base, RABBITMQ_URL: 'amqps://user:pw@mq.example.com' }).RABBITMQ_URL,
     ).toBe('amqps://user:pw@mq.example.com');
+  });
+
+  it('validates the Redis and rate-limit variables', () => {
+    expect(() => validateEnv({ ...base, REDIS_URL: 'http://localhost:6379' })).toThrow(/REDIS_URL/);
+    expect(() => validateEnv({ ...base, TRUST_PROXY_HOPS: '9' })).toThrow(/TRUST_PROXY_HOPS/);
+    expect(validateEnv({ ...base, RATE_LIMIT_ENABLED: 'false' }).RATE_LIMIT_ENABLED).toBe(false);
+    expect(validateEnv(base).RATE_LIMIT_ENABLED).toBeUndefined();
   });
 });

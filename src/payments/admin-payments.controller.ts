@@ -11,6 +11,7 @@ import {
 } from '@nestjs/swagger';
 import { IdParamDto } from '../common/schemas';
 import { parseIdempotencyKey } from '../orders/orders.utils';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { RefundDto, RefundResultDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
@@ -20,6 +21,7 @@ import { PaymentsService } from './payments.service';
 export class AdminPaymentsController {
   constructor(private readonly service: PaymentsService) {}
 
+  @RateLimit('strict')
   @Post(':id/refund')
   @HttpCode(202)
   @ApiOperation({

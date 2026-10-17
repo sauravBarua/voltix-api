@@ -1,9 +1,15 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SkipRateLimit } from '../rate-limit/rate-limit.decorator';
+import { RedisService } from '../redis/redis.service';
 
+@SkipRateLimit()
 @Controller('health')
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   // Liveness: process is up (no dependencies)
   @Get()
@@ -15,14 +21,14 @@ export class HealthController {
     };
   }
 
-  // Readiness: dependencies are reachable (Redis and RabbitMQ get added in their phases)
+  // Readiness: only the database decides. Redis is an optimisation, so its state is informational.
   @Get('ready')
   async ready() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return { status: 'ready', db: 'up' };
     } catch {
       throw new ServiceUnavailableException({ status: 'unavailable', db: 'down' });
     }
+    return { status: 'ready', db: 'up', redis: (await this.redis.ping()) ? 'up' : 'down' };
   }
 }

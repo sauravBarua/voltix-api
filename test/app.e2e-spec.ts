@@ -26,6 +26,6 @@ describe('Health (e2e)', () => {
 
   it('GET /health/ready returns ready when the database is up', async () => {
     const res = await request(app.getHttpServer()).get('/health/ready').expect(200);
-    expect(res.body).toEqual({ status: 'ready', db: 'up' });
+    expect(res.body).toMatchObject({ status: 'ready', db: 'up' });
   });
 });

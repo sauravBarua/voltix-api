@@ -27,9 +27,12 @@ import {
   ApiUnsupportedMediaTypeResponse,
 } from '@nestjs/swagger';
 import { IdParamDto, SlugParamDto } from '../../common/schemas';
+import { CatalogCacheService } from '../catalog-cache.service';
+import { CatalogInvalidationInterceptor } from '../catalog-invalidation.interceptor';
 import { ParseJsonDataPipe } from '../../common/pipes/parse-json-data.pipe';
 import { imageUploadOptions, multipartBody } from '../../media/image-upload';
 import { MAX_FILES_PER_REQUEST } from '../../media/media.constants';
+import { RateLimit } from '../../rate-limit/rate-limit.decorator';
 import {
   type CreateProductInput,
   ListProductsDto,
@@ -52,15 +55,19 @@ const updateExample = JSON.stringify({ description: 'New text', removeImageIds: 
 
 @ApiTags('Products')
 @Controller('products')
+@UseInterceptors(CatalogInvalidationInterceptor)
 export class ProductsController {
-  constructor(private readonly service: ProductsService) {}
+  constructor(
+    private readonly service: ProductsService,
+    private readonly cache: CatalogCacheService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Search and filter products (public)' })
   @ApiOkResponse({ type: ProductListDto })
   @ApiBadRequestResponse({ description: 'Invalid query parameters' })
   list(@Query() query: ListProductsDto) {
-    return this.service.list(query);
+    return this.cache.listProducts(query);
   }
 
   @Get(':slug')
@@ -68,9 +75,10 @@ export class ProductsController {
   @ApiOkResponse({ type: ProductDetailDto })
   @ApiNotFoundResponse()
   get(@Param() params: SlugParamDto) {
-    return this.service.getBySlug(params.slug);
+    return this.cache.getProduct(params.slug);
   }
 
+  @RateLimit('upload')
   @Post()
   @UseInterceptors(FilesInterceptor('images', MAX_FILES_PER_REQUEST, imageUploadOptions))
   @ApiOperation({ summary: 'Create a product with optional images (admin, guarded from Phase 13)' })
@@ -92,6 +100,7 @@ export class ProductsController {
     return this.service.create(dto, files);
   }
 
+  @RateLimit('upload')
   @Patch(':id')
   @UseInterceptors(FilesInterceptor('images', MAX_FILES_PER_REQUEST, imageUploadOptions))
   @ApiOperation({

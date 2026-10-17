@@ -72,7 +72,7 @@ describe('Outbox publisher, RabbitMQ and consumers (e2e)', () => {
   afterAll(async () => {
     if (!moduleRef) return;
     await moduleRef.close();
-    await prisma.outboxEvent.deleteMany({ where: { aggregateType: 'e2e-test' } });
+    await prisma.outboxEvent.deleteMany({ where: { aggregateType: 'e2e-messaging' } });
     await prisma.processedMessage.deleteMany({ where: { consumer: QUEUE } });
     await withChannel(async (ch) => {
       for (const queue of [
@@ -121,7 +121,7 @@ describe('Outbox publisher, RabbitMQ and consumers (e2e)', () => {
 
   const enqueue = (type: string, payload: Prisma.InputJsonObject = {}) =>
     prisma.outboxEvent.create({
-      data: { aggregateType: 'e2e-test', aggregateId: randomUUID(), type, payload },
+      data: { aggregateType: 'e2e-messaging', aggregateId: randomUUID(), type, payload },
       select: { id: true, aggregateId: true },
     });
 
@@ -144,7 +144,7 @@ describe('Outbox publisher, RabbitMQ and consumers (e2e)', () => {
     expect(event[0]).toMatchObject({
       id: row.id,
       type: KEY.ok,
-      aggregateType: 'e2e-test',
+      aggregateType: 'e2e-messaging',
       aggregateId: row.aggregateId,
       payload: { hello: 'world' },
     });
@@ -159,7 +159,7 @@ describe('Outbox publisher, RabbitMQ and consumers (e2e)', () => {
     const envelope: EventEnvelope = {
       id,
       type: KEY.ok,
-      aggregateType: 'e2e-test',
+      aggregateType: 'e2e-messaging',
       aggregateId: randomUUID(),
       occurredAt: new Date().toISOString(),
       payload: {},
@@ -178,6 +178,8 @@ describe('Outbox publisher, RabbitMQ and consumers (e2e)', () => {
 
     await waitFor(() => (handledIds(row.id).length > 0 ? true : undefined));
     expect(calls.get(KEY.retry)).toBe(3); // failed twice, then succeeded
+    // the handler runs before its transaction commits, so wait for the dedupe row
+    await waitFor(async () => ((await processedCount(row.id)) === 1 ? true : undefined));
     expect(await processedCount(row.id)).toBe(1);
     expect((await rowOf(row.id)).status).toBe('PUBLISHED');
   });

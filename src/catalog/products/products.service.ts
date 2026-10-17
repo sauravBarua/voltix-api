@@ -9,7 +9,8 @@ import { getSpecsSchema } from '../specs/specs.schemas';
 import {
   type ProductRow,
   mapProductDetail,
-  mapProductSummary,
+  mapProductDetailStatic,
+  mapProductStatic,
   productInclude,
 } from './product.mapper';
 import type { CreateProductDto, ListProductsDto, UpdateProductDto } from './products.dto';
@@ -87,7 +88,7 @@ export class ProductsService {
       const products = await this.prisma.product.findMany({ where: { id: { in: ids } }, include });
       const byId = new Map(products.map((p) => [p.id, p]));
       const items = ids.map((id) => byId.get(id)).filter((p): p is ProductRow => p !== undefined);
-      return { items: items.map(mapProductSummary), meta: meta(rows.length) };
+      return { items: items.map(mapProductStatic), meta: meta(rows.length) };
     }
 
     const [total, rows] = await this.prisma.$transaction([
@@ -100,7 +101,7 @@ export class ProductsService {
         take: pageSize,
       }),
     ]);
-    return { items: rows.map(mapProductSummary), meta: meta(total) };
+    return { items: rows.map(mapProductStatic), meta: meta(total) };
   }
 
   async getBySlug(slug: string) {
@@ -109,7 +110,7 @@ export class ProductsService {
       include: productInclude({ isActive: true }),
     });
     if (!product) throw new NotFoundException('Product not found');
-    return mapProductDetail(product);
+    return mapProductDetailStatic(product);
   }
 
   async create(dto: CreateProductDto, files?: Express.Multer.File[]) {

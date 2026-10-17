@@ -26,7 +26,9 @@ import {
 } from '@nestjs/swagger';
 import { ParseJsonDataPipe } from '../../common/pipes/parse-json-data.pipe';
 import { IdParamDto } from '../../common/schemas';
+import { CatalogInvalidationInterceptor } from '../catalog-invalidation.interceptor';
 import { imageUploadOptions, multipartBody } from '../../media/image-upload';
+import { RateLimit } from '../../rate-limit/rate-limit.decorator';
 import {
   type CreateVariantInput,
   type UpdateVariantInput,
@@ -45,9 +47,11 @@ const updateExample = JSON.stringify({ priceMinor: 139900 });
 
 @ApiTags('Variants')
 @Controller()
+@UseInterceptors(CatalogInvalidationInterceptor)
 export class VariantsController {
   constructor(private readonly service: VariantsService) {}
 
+  @RateLimit('upload')
   @Post('products/:id/variants')
   @UseInterceptors(FileInterceptor('image', imageUploadOptions))
   @ApiOperation({ summary: 'Add a variant with an optional image (admin, guarded from Phase 13)' })
@@ -67,6 +71,7 @@ export class VariantsController {
     return this.service.create(params.id, dto, file);
   }
 
+  @RateLimit('upload')
   @Patch('variants/:id')
   @UseInterceptors(FileInterceptor('image', imageUploadOptions))
   @ApiOperation({

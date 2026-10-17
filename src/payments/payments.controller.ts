@@ -12,6 +12,7 @@ import {
 import { CurrentUserId } from '../common/auth/current-user-id.decorator';
 import { DevUserGuard } from '../common/auth/dev-user.guard';
 import { IdParamDto } from '../common/schemas';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { PayResultDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
@@ -27,6 +28,7 @@ import { PaymentsService } from './payments.service';
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
 
+  @RateLimit('strict')
   @Post(':id/pay')
   @HttpCode(200)
   @ApiOperation({

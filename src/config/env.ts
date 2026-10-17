@@ -25,6 +25,12 @@ export const envSchema = z
       .string()
       .regex(/^amqps?:\/\//, 'must be an amqp:// URL')
       .default('amqp://voltix:voltix@localhost:5672'),
+    REDIS_URL: z
+      .string()
+      .regex(/^rediss?:\/\//, 'must be a redis:// URL')
+      .default('redis://localhost:6379'),
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    RATE_LIMIT_ENABLED: z.stringbool().optional(),
   })
   .refine((e) => e.NODE_ENV === 'production' || !e.STRIPE_SECRET_KEY.includes('_live_'), {
     message: 'Live Stripe keys are not allowed outside production',

@@ -3,11 +3,13 @@ import type { RawBodyRequest } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type Stripe from 'stripe';
+import { SkipRateLimit } from '../rate-limit/rate-limit.decorator';
 import { StripeWebhookService } from './stripe-webhook.service';
 import { StripeService } from './stripe.service';
 
 /** POST /webhooks/stripe (outside /api/v1, see app.setup.ts). Public: authenticated by the signature. */
 @ApiExcludeController()
+@SkipRateLimit()
 @Controller('webhooks')
 export class StripeWebhookController {
   constructor(
