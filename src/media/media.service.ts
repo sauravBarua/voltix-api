@@ -52,7 +52,7 @@ export class MediaService {
       const detected = detectImageType(file.buffer);
       if (!detected || detected !== file.mimetype) {
         throw new UnsupportedMediaTypeException(
-          `${file.originalname} is not a valid jpeg, png or webp image`,
+          `${file.originalname} is not a valid jpeg, png, webp or avif image`,
         );
       }
     }

@@ -15,7 +15,10 @@ export const imageUploadOptions: UploadOptions = {
     if ((ALLOWED_IMAGE_MIME as readonly string[]).includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new UnsupportedMediaTypeException('Only jpeg, png and webp images are allowed'), false);
+      cb(
+        new UnsupportedMediaTypeException('Only jpeg, png, webp and avif images are allowed'),
+        false,
+      );
     }
   },
 };

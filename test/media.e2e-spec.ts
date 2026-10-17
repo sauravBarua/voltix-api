@@ -89,6 +89,23 @@ describe('Media (e2e)', () => {
     expect(fake.uploaded.length - before).toBe(2);
   });
 
+  it('accepts an AVIF image', async () => {
+    const avif = Buffer.concat([
+      Buffer.from([0, 0, 0, 24]),
+      Buffer.from('ftyp'),
+      Buffer.from('avif'),
+      Buffer.alloc(4),
+      Buffer.from('mif1'),
+      Buffer.from('avif'),
+    ]);
+    const res = await request(app.getHttpServer())
+      .post(url('/products'))
+      .field('data', productData())
+      .attach('images', avif, { filename: 'image.avif', contentType: 'image/avif' })
+      .expect(201);
+    expect((res.body as Detail).images).toHaveLength(1);
+  });
+
   it('rejects missing or invalid data with 400', async () => {
     await request(app.getHttpServer()).post(url('/products')).field('data', '{oops').expect(400);
     await request(app.getHttpServer())

@@ -82,7 +82,9 @@ export class ProductsController {
   })
   @ApiConflictResponse({ description: 'Slug already exists' })
   @ApiPayloadTooLargeResponse({ description: 'Image larger than 5 MB' })
-  @ApiUnsupportedMediaTypeResponse({ description: 'Only jpeg, png and webp images are accepted' })
+  @ApiUnsupportedMediaTypeResponse({
+    description: 'Only jpeg, png, webp and avif images are accepted',
+  })
   create(
     @Body('data', new ParseJsonDataPipe(createProductSchema)) dto: CreateProductInput,
     @UploadedFiles() files: Express.Multer.File[],

@@ -21,3 +21,30 @@ describe('detectImageType', () => {
     expect(detectImageType(Buffer.alloc(2))).toBeNull();
   });
 });
+
+describe('detectImageType (avif)', () => {
+  const ftyp = (major: string, compat: string) =>
+    Buffer.concat([
+      Buffer.from([0, 0, 0, 24]),
+      Buffer.from('ftyp'),
+      Buffer.from(major),
+      Buffer.alloc(4),
+      Buffer.from(compat),
+      Buffer.from('avif'),
+    ]);
+
+  it('detects AVIF', () => {
+    expect(detectImageType(ftyp('avif', 'mif1'))).toBe('image/avif');
+  });
+
+  it('rejects HEIC, which shares the container', () => {
+    const heic = Buffer.concat([
+      Buffer.from([0, 0, 0, 20]),
+      Buffer.from('ftyp'),
+      Buffer.from('heic'),
+      Buffer.alloc(4),
+      Buffer.from('mif1'),
+    ]);
+    expect(detectImageType(heic)).toBeNull();
+  });
+});
