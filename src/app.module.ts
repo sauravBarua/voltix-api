@@ -7,6 +7,7 @@ import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter'
 import { validateEnv } from './config/env';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     HealthModule,
     CatalogModule,
+    InventoryModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
