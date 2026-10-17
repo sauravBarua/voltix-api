@@ -9,7 +9,12 @@ const base = {
 
 describe('validateEnv', () => {
   it('applies defaults', () => {
-    expect(validateEnv(base)).toEqual({ NODE_ENV: 'development', PORT: 3000, ...base });
+    expect(validateEnv(base)).toEqual({
+      NODE_ENV: 'development',
+      PORT: 3000,
+      RESERVATION_TTL_MINUTES: 32,
+      ...base,
+    });
   });
 
   it('coerces PORT from string', () => {
@@ -30,6 +35,15 @@ describe('validateEnv', () => {
   it('throws when a Cloudinary variable is missing', () => {
     expect(() => validateEnv({ ...base, CLOUDINARY_API_SECRET: undefined })).toThrow(
       /CLOUDINARY_API_SECRET/,
+    );
+  });
+
+  it('rejects a reservation TTL too short for Stripe Checkout', () => {
+    expect(() => validateEnv({ ...base, RESERVATION_TTL_MINUTES: '30' })).toThrow(
+      /RESERVATION_TTL_MINUTES/,
+    );
+    expect(validateEnv({ ...base, RESERVATION_TTL_MINUTES: '45' }).RESERVATION_TTL_MINUTES).toBe(
+      45,
     );
   });
 });

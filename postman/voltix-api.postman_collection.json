@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Voltix API",
-    "description": "Health, catalog (categories, brands, products, variants), media (Cloudinary images) and inventory. Base path {{baseUrl}}/api/v1 (health routes are unprefixed). No auth until Phase 13. Run top to bottom with the Collection Runner. Select image.png on the file rows after import.",
+    "description": "Health, catalog (categories, brands, products, variants), media (Cloudinary images), inventory and reservations. Base path {{baseUrl}}/api/v1 (health routes are unprefixed). No auth until Phase 13. Run top to bottom with the Collection Runner. Select image.png on the file rows after import.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -2572,6 +2572,159 @@
               "code": 404,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\"statusCode\":404,\"message\":\"Product not found\",\"error\":\"Not Found\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reservations",
+      "item": [
+        {
+          "name": "List reservations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('items and meta', () => { pm.expect(b.items).to.be.an('array'); pm.expect(b.meta).to.have.keys('page', 'pageSize', 'total', 'totalPages'); });",
+                  "pm.test('each item has the reservation shape', () => b.items.forEach(i => { pm.expect(i).to.have.keys('id', 'orderId', 'variantId', 'sku', 'quantity', 'status', 'expiresAt', 'resolvedAt', 'createdAt'); pm.expect(['ACTIVE', 'CONSUMED', 'RELEASED', 'EXPIRED']).to.include(i.status); }));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations?page=1&pageSize=20"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"items\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000a00\",\"orderId\":\"0192f5c4-0000-7000-8000-000000000b00\",\"variantId\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"quantity\":2,\"status\":\"ACTIVE\",\"expiresAt\":\"2026-10-17T10:40:00.000Z\",\"resolvedAt\":null,\"createdAt\":\"2026-10-17T10:08:00.000Z\"}],\"meta\":{\"page\":1,\"pageSize\":20,\"total\":1,\"totalPages\":1}}"
+            },
+            {
+              "name": "400 Invalid filter",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"status\"],\"message\":\"Invalid option\"}]}"
+            }
+          ]
+        },
+        {
+          "name": "List reservations (active only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('every item is ACTIVE', () => pm.expect(pm.response.json().items.every(i => i.status === 'ACTIVE')).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations?status=ACTIVE"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"items\":[],\"meta\":{\"page\":1,\"pageSize\":20,\"total\":0,\"totalPages\":0}}"
+            }
+          ]
+        },
+        {
+          "name": "List reservations (400 invalid status)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations?status=NOPE"
+          },
+          "response": [
+            {
+              "name": "400 Invalid status",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"status\"],\"message\":\"Invalid option\"}]}"
+            }
+          ]
+        },
+        {
+          "name": "Expire due reservations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('result counts', () => { pm.expect(b.expiredOrders).to.be.a('number'); pm.expect(b.failedOrders).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations/expire-due"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"expiredOrders\":0,\"failedOrders\":0}"
             }
           ]
         }
