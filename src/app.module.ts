@@ -17,6 +17,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RateLimitGuard } from './rate-limit/rate-limit.guard';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { RedisModule } from './redis/redis.module';
 import { ReservationsModule } from './reservations/reservations.module';
 
@@ -35,6 +36,7 @@ import { ReservationsModule } from './reservations/reservations.module';
     PaymentsModule,
     OrdersModule,
     OutboxModule,
+    RealtimeModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

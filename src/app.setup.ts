@@ -1,4 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from './config/env';
+import { RealtimeAdapter } from './realtime/realtime.adapter';
 
 export const API_PREFIX = 'api/v1';
 
@@ -9,4 +12,8 @@ export function configureApp(app: INestApplication) {
     exclude: ['health', 'health/ready', 'webhooks/stripe'],
   });
   app.enableShutdownHooks();
+  const frontendUrl = app
+    .get<ConfigService<Env, true>>(ConfigService)
+    .get('FRONTEND_URL', { infer: true });
+  app.useWebSocketAdapter(new RealtimeAdapter(app, frontendUrl));
 }

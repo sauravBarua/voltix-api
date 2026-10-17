@@ -5,6 +5,7 @@ import { MessagingModule } from './messaging/messaging.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OutboxPublisherModule } from './outbox/outbox-publisher.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RealtimeWorkerModule } from './realtime/realtime-worker.module';
 import { CacheInvalidationModule } from './redis/cache-invalidation.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -18,6 +19,7 @@ import { RedisModule } from './redis/redis.module';
     OutboxPublisherModule,
     NotificationsModule,
     CacheInvalidationModule,
+    RealtimeWorkerModule,
   ],
 })
 export class WorkerModule {}

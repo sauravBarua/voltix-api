@@ -1,0 +1,276 @@
+{
+  "info": {
+    "name": "Voltix API - Phase 14 (Realtime triggers)",
+    "description": "Triggers real-time events. Watch them with: pnpm realtime:listen. Needs adminToken and customerToken (run the Auth logins first).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "adminToken", "value": "" },
+    { "key": "customerToken", "value": "" },
+    { "key": "variantId", "value": "" },
+    { "key": "orderId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Admin triggers",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Get variant id (iPhone 16 Pro 512 GB)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 and the seed variant exists', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const v = pm.response.json().variants.find(x => x.sku === 'IP16P-512-NAT');",
+                  "  pm.expect(v).to.exist;",
+                  "  pm.collectionVariables.set('variantId', v.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/iphone-16-pro"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"slug\":\"iphone-16-pro\",\"variants\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"available\":15}]}"
+            }
+          ]
+        },
+        {
+          "name": "Stock in +1 (emits inventory:changed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201, stock increased', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().stock.onHand).to.be.a('number'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 1,\n  \"reason\": \"Realtime demo\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/inventory/variants/{{variantId}}/stock-in"
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"replayed\":false,\"movement\":{\"type\":\"STOCK_IN\",\"deltaOnHand\":1},\"stock\":{\"onHand\":16,\"reserved\":0,\"available\":16,\"reorderLevel\":5}}"
+            },
+            {
+              "name": "401 No token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"statusCode\":401,\"message\":\"Missing bearer token\",\"error\":\"Unauthorized\"}"
+            },
+            {
+              "name": "403 Not staff",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"statusCode\":403,\"message\":\"Your role cannot access this resource\",\"error\":\"Forbidden\"}"
+            }
+          ]
+        },
+        {
+          "name": "Expire due reservations (emits reservation:expired when something expired)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, nothing failed', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().failedOrders).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations/expire-due"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"expiredOrders\":0,\"failedOrders\":0}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Customer triggers",
+      "item": [
+        {
+          "name": "Clear cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": { "method": "DELETE", "header": [], "url": "{{baseUrl}}/api/v1/cart" },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"id\":null,\"items\":[],\"itemCount\":0,\"subtotalMinor\":0,\"currency\":\"EUR\",\"hasIssues\":false}"
+            }
+          ]
+        },
+        {
+          "name": "Add item (qty 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, one unit', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().itemCount).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"variantId\": \"{{variantId}}\",\n  \"quantity\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/cart/items"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"items\":[{\"quantity\":1,\"status\":\"OK\"}],\"itemCount\":1,\"subtotalMinor\":149900,\"hasIssues\":false}"
+            }
+          ]
+        },
+        {
+          "name": "Checkout (emits order:created to admins)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201, pending order', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().order.status).to.eql('PENDING_PAYMENT'); });",
+                  "pm.collectionVariables.set('orderId', pm.response.json().order.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shippingAddress\": { \"fullName\": \"Test Customer\", \"line1\": \"1 Rue de Test\", \"city\": \"Paris\", \"postalCode\": \"75001\", \"country\": \"FR\" }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/orders/checkout"
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"replayed\":false,\"order\":{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"status\":\"PENDING_PAYMENT\",\"totalMinor\":149900}}"
+            },
+            {
+              "name": "409 Another unpaid order exists",
+              "status": "Conflict",
+              "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"statusCode\":409,\"error\":\"Conflict\",\"message\":\"You already have an order awaiting payment. Pay or cancel it first.\"}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel order (emits order:updated to admins and you)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 cancelled', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().status).to.eql('CANCELLED'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/cancel"
+          },
+          "response": [
+            {
+              "name": "201 Cancelled",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"status\":\"CANCELLED\",\"cancelReason\":\"CUSTOMER_CANCELLED\"}"
+            },
+            {
+              "name": "404 Not your order",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"statusCode\":404,\"message\":\"Order not found\",\"error\":\"Not Found\"}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

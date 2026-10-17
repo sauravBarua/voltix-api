@@ -22,17 +22,22 @@ export class TokensService {
     return { token: this.jwt.sign({ sub: userId }), expiresInSeconds: this.ttlSeconds };
   }
 
-  /** Returns the user id. Signature, algorithm, issuer and expiry are checked by the JwtModule options. */
-  async verifyAccess(token: string): Promise<string> {
-    let payload: { sub?: unknown };
+  /** Returns the user id and the expiry (ms since epoch). The JwtModule options check signature, algorithm, issuer and expiry. */
+  async verifyAccessDetailed(token: string): Promise<{ userId: string; expiresAt: number }> {
+    let payload: { sub?: unknown; exp?: unknown };
     try {
-      payload = await this.jwt.verifyAsync<{ sub?: unknown }>(token);
+      payload = await this.jwt.verifyAsync<{ sub?: unknown; exp?: unknown }>(token);
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
     const sub = z.uuid().safeParse(payload.sub);
-    if (!sub.success) throw new UnauthorizedException('Invalid or expired token');
-    return sub.data;
+    const exp = z.number().safeParse(payload.exp);
+    if (!sub.success || !exp.success) throw new UnauthorizedException('Invalid or expired token');
+    return { userId: sub.data, expiresAt: exp.data * 1000 };
+  }
+
+  async verifyAccess(token: string): Promise<string> {
+    return (await this.verifyAccessDetailed(token)).userId;
   }
 
   /** 256 random bits; only the SHA-256 is stored, so a database leak does not leak usable tokens. */
