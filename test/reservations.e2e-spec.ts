@@ -20,7 +20,6 @@ describe('Reservations (e2e)', () => {
   let reservations: ReservationsService;
   let brandId: string;
   let categoryId: string;
-  let userId: string;
   let counter = 0;
   const createdOrders: string[] = [];
   const suffix = Date.now().toString(36).toUpperCase();
@@ -38,18 +37,18 @@ describe('Reservations (e2e)', () => {
     const categories = (await api().get('/categories').expect(200)).body as Ref[];
     brandId = brands.find((b) => b.slug === 'dell')!.id;
     categoryId = categories.find((c) => c.slug === 'laptops')!.id;
-    userId = (
-      await prisma.user.create({
-        data: { email: `reservations-${suffix}@voltix.test`, name: 'Reservations Test' },
-        select: { id: true },
-      })
-    ).id;
   });
 
   afterAll(async () => {
-    // Free whatever the tests left active so stock in the dev database stays clean
+    // Free whatever the tests left active, and close the orders, so the dev database stays clean
     for (const orderId of createdOrders) {
-      await prisma.$transaction((tx) => reservations.release(tx, orderId));
+      await prisma.$transaction(async (tx) => {
+        await reservations.release(tx, orderId);
+        await tx.order.updateMany({
+          where: { id: orderId, status: 'PENDING_PAYMENT' },
+          data: { status: 'CANCELLED', cancelReason: 'TEST_CLEANUP', cancelledAt: new Date() },
+        });
+      });
     }
     await app.close();
   });
@@ -96,12 +95,17 @@ describe('Reservations (e2e)', () => {
     return variant.id;
   };
 
-  /** Phase 9 creates orders through checkout; here a minimal row is enough. */
+  /** Phase 9 creates orders through checkout; here a minimal row is enough (one user per order). */
   const createOrder = async () => {
+    const n = ++counter;
+    const user = await prisma.user.create({
+      data: { email: `reservations-${suffix}-${n}@voltix.test`, name: 'Reservations Test' },
+      select: { id: true },
+    });
     const order = await prisma.order.create({
       data: {
-        orderNumber: `RSV-${suffix}-${++counter}`,
-        userId,
+        orderNumber: `RSV-${suffix}-${n}`,
+        userId: user.id,
         subtotalMinor: 1000,
         totalMinor: 1000,
         idempotencyKey: randomUUID(),

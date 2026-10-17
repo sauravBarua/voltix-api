@@ -21,7 +21,9 @@
     { "key": "onHandAfterIn", "value": "" },
     { "key": "movementId", "value": "" },
     { "key": "customerId", "value": "" },
-    { "key": "variantId2", "value": "" }
+    { "key": "variantId2", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "orderNumber", "value": "" }
   ],
   "item": [
     {
@@ -2725,6 +2727,1060 @@
                 }
               ],
               "body": "{\"expiredOrders\":0,\"failedOrders\":0}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Setup",
+          "item": [
+            {
+              "name": "Get variant id (iPhone 16 Pro 512 GB)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const v = pm.response.json().variants.find(x => x.sku === 'IP16P-512-NAT');",
+                      "pm.test('seed variant exists', () => pm.expect(v).to.exist);",
+                      "pm.collectionVariables.set('variantId', v.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/products/iphone-16-pro"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"slug\":\"iphone-16-pro\",\"variants\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"available\":15}]}"
+                }
+              ]
+            },
+            {
+              "name": "Find a leftover open order",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const items = pm.response.json().items;",
+                      "pm.collectionVariables.set('orderId', items.length ? items[0].id : '00000000-0000-7000-8000-000000000000');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders?status=PENDING_PAYMENT"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"items\":[],\"meta\":{\"page\":1,\"pageSize\":20,\"total\":0,\"totalPages\":0}}"
+                },
+                {
+                  "name": "401 Missing or unknown x-user-id",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel the leftover order (cleanup)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('cancelled, or nothing to cancel', () => pm.expect([201, 404]).to.include(pm.response.code));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/cancel"
+              },
+              "response": [
+                {
+                  "name": "404 No such order",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Order not found\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Clear cart",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "pm.test('cart is empty', () => pm.expect(pm.response.json().items).to.eql([]));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/cart"
+              },
+              "response": [
+                {
+                  "name": "200 Empty cart",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":null,\"items\":[],\"itemCount\":0,\"subtotalMinor\":0,\"currency\":\"EUR\",\"hasIssues\":false}"
+                }
+              ]
+            },
+            {
+              "name": "Add item to cart (qty 2)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "pm.test('two units in the cart', () => pm.expect(pm.response.json().itemCount).to.eql(2));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"variantId\": \"{{variantId}}\",\n  \"quantity\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/cart/items"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000700\",\"items\":[{\"sku\":\"IP16P-512-NAT\",\"quantity\":2,\"status\":\"OK\"}],\"itemCount\":2,\"subtotalMinor\":299800,\"currency\":\"EUR\",\"hasIssues\":false}"
+                },
+                {
+                  "name": "409 Not enough stock",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"error\":\"Conflict\",\"message\":\"Not enough stock available\",\"available\":1,\"requested\":2,\"inCart\":0}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Checkout",
+          "item": [
+            {
+              "name": "Checkout (401 no x-user-id)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 401', () => pm.response.to.have.status(401));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "pm-no-auth-0001"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shippingAddress\": { \"fullName\": \"Test Customer\", \"line1\": \"1 Rue de Test\", \"city\": \"Paris\", \"postalCode\": \"75001\", \"country\": \"FR\" }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/orders/checkout"
+              },
+              "response": [
+                {
+                  "name": "401 Unauthorized",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                }
+              ]
+            },
+            {
+              "name": "Checkout (400 missing Idempotency-Key)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 400', () => pm.response.to.have.status(400));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shippingAddress\": { \"fullName\": \"Test Customer\", \"line1\": \"1 Rue de Test\", \"city\": \"Paris\", \"postalCode\": \"75001\", \"country\": \"FR\" }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/orders/checkout"
+              },
+              "response": [
+                {
+                  "name": "400 Missing key",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Idempotency-Key header is required (8-100 characters: letters, digits, . _ : -)\",\"error\":\"Bad Request\"}"
+                }
+              ]
+            },
+            {
+              "name": "Checkout (400 invalid address)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 400', () => pm.response.to.have.status(400));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shippingAddress\": { \"fullName\": \"X\", \"city\": \"Paris\", \"country\": \"fr\" }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/orders/checkout"
+              },
+              "response": [
+                {
+                  "name": "400 Validation error",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"shippingAddress\",\"fullName\"],\"message\":\"Too small\"},{\"path\":[\"shippingAddress\",\"line1\"],\"message\":\"Invalid input: expected string, received undefined\"}]}"
+                }
+              ]
+            },
+            {
+              "name": "Checkout",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.collectionVariables.set('idemKey', 'pm-order-' + Date.now());"]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('new pending order, not a replay', () => { pm.expect(b.replayed).to.be.false; pm.expect(b.order.status).to.eql('PENDING_PAYMENT'); pm.expect(b.order.orderNumber).to.match(/^VLX-\\d{8}-[0-9A-Z]{8}$/); });",
+                      "pm.test('line snapshot and totals add up', () => {",
+                      "  pm.expect(b.order.items).to.have.lengthOf(1);",
+                      "  pm.expect(b.order.items[0].quantity).to.eql(2);",
+                      "  pm.expect(b.order.items[0].lineTotalMinor).to.eql(b.order.items[0].unitPriceMinor * 2);",
+                      "  pm.expect(b.order.totalMinor).to.eql(b.order.subtotalMinor + b.order.shippingMinor);",
+                      "});",
+                      "pm.test('payment deadline is set', () => pm.expect(b.order.expiresAt).to.be.a('string'));",
+                      "pm.collectionVariables.set('orderId', b.order.id);",
+                      "pm.collectionVariables.set('orderNumber', b.order.orderNumber);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{idemKey}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shippingAddress\": {\n    \"fullName\": \"Test Customer\",\n    \"line1\": \"1 Rue de Test\",\n    \"line2\": \"Apt 4\",\n    \"city\": \"Paris\",\n    \"postalCode\": \"75001\",\n    \"country\": \"FR\",\n    \"phone\": \"+33 6 12 34 56 78\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/orders/checkout"
+              },
+              "response": [
+                {
+                  "name": "201 Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"replayed\":false,\"order\":{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"orderNumber\":\"VLX-20261017-ABCD1234\",\"status\":\"PENDING_PAYMENT\",\"items\":[{\"variantId\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"name\":\"iPhone 16 Pro - 512 GB / Natural Titanium\",\"unitPriceMinor\":149900,\"quantity\":2,\"lineTotalMinor\":299800}],\"subtotalMinor\":299800,\"shippingMinor\":0,\"totalMinor\":299800,\"currency\":\"EUR\",\"shippingAddress\":{\"fullName\":\"Test Customer\",\"line1\":\"1 Rue de Test\",\"city\":\"Paris\",\"postalCode\":\"75001\",\"country\":\"FR\"},\"expiresAt\":\"2026-10-17T10:50:00.000Z\",\"cancelReason\":null,\"paidAt\":null,\"shippedAt\":null,\"cancelledAt\":null,\"createdAt\":\"2026-10-17T10:18:00.000Z\"}}"
+                },
+                {
+                  "name": "400 Empty cart, bad address or total too high",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Your cart is empty\",\"error\":\"Bad Request\"}"
+                },
+                {
+                  "name": "401 Missing x-user-id",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":401,\"message\":\"Missing or invalid x-user-id header\",\"error\":\"Unauthorized\"}"
+                },
+                {
+                  "name": "409 Not enough stock",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"error\":\"Conflict\",\"message\":\"Not enough stock available\",\"variantId\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\",\"available\":1,\"requested\":2}"
+                },
+                {
+                  "name": "409 Item no longer available",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"error\":\"Conflict\",\"message\":\"Some items are no longer available. Remove them from your cart.\",\"unavailable\":[{\"variantId\":\"0192f5c4-0000-7000-8000-000000000202\",\"sku\":\"IP16P-512-NAT\"}]}"
+                }
+              ]
+            },
+            {
+              "name": "Checkout (replay, same key)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200 (replay)', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('replayed, same order', () => { pm.expect(b.replayed).to.be.true; pm.expect(b.order.id).to.eql(pm.collectionVariables.get('orderId')); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{idemKey}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shippingAddress\": { \"fullName\": \"Test Customer\", \"line1\": \"1 Rue de Test\", \"city\": \"Paris\", \"postalCode\": \"75001\", \"country\": \"FR\" }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/orders/checkout"
+              },
+              "response": [
+                {
+                  "name": "200 Replay",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"replayed\":true,\"order\":{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"orderNumber\":\"VLX-20261017-ABCD1234\",\"status\":\"PENDING_PAYMENT\",\"totalMinor\":299800}}"
+                }
+              ]
+            },
+            {
+              "name": "Checkout (409 another unpaid order, new key)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 409', () => pm.response.to.have.status(409));",
+                      "pm.test('points at the open order', () => pm.expect(pm.response.json().orderId).to.eql(pm.collectionVariables.get('orderId')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shippingAddress\": { \"fullName\": \"Test Customer\", \"line1\": \"1 Rue de Test\", \"city\": \"Paris\", \"postalCode\": \"75001\", \"country\": \"FR\" }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/v1/orders/checkout"
+              },
+              "response": [
+                {
+                  "name": "409 Open order exists",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"error\":\"Conflict\",\"message\":\"You already have an order awaiting payment. Pay or cancel it first.\",\"orderId\":\"0192f5c4-0000-7000-8000-000000000b01\",\"orderNumber\":\"VLX-20261017-ABCD1234\"}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "My orders",
+          "item": [
+            {
+              "name": "List my orders",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('items and meta', () => { pm.expect(b.items).to.be.an('array'); pm.expect(b.meta).to.have.keys('page', 'pageSize', 'total', 'totalPages'); });",
+                      "pm.test('contains the new pending order', () => pm.expect(b.items.map(o => o.id)).to.include(pm.collectionVariables.get('orderId')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders?status=PENDING_PAYMENT&page=1&pageSize=20"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"items\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"orderNumber\":\"VLX-20261017-ABCD1234\",\"status\":\"PENDING_PAYMENT\",\"totalMinor\":299800}],\"meta\":{\"page\":1,\"pageSize\":20,\"total\":1,\"totalPages\":1}}"
+                },
+                {
+                  "name": "400 Invalid status",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"status\"],\"message\":\"Invalid option\"}]}"
+                }
+              ]
+            },
+            {
+              "name": "Get order",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('same order, still pending', () => { pm.expect(b.id).to.eql(pm.collectionVariables.get('orderId')); pm.expect(b.status).to.eql('PENDING_PAYMENT'); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderId}}"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"orderNumber\":\"VLX-20261017-ABCD1234\",\"status\":\"PENDING_PAYMENT\",\"totalMinor\":299800,\"currency\":\"EUR\"}"
+                },
+                {
+                  "name": "404 Not found (or another user's order)",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Order not found\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Get order (404 unknown id)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 404', () => pm.response.to.have.status(404));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders/0192f5c4-0000-7000-8000-00000000dead"
+              },
+              "response": [
+                {
+                  "name": "404 Not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Order not found\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel order",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('cancelled by the customer, no payment deadline', () => { pm.expect(b.status).to.eql('CANCELLED'); pm.expect(b.cancelReason).to.eql('CUSTOMER_CANCELLED'); pm.expect(b.expiresAt).to.be.null; });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/cancel"
+              },
+              "response": [
+                {
+                  "name": "201 Cancelled",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"status\":\"CANCELLED\",\"cancelReason\":\"CUSTOMER_CANCELLED\",\"expiresAt\":null}"
+                },
+                {
+                  "name": "404 Not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Order not found\",\"error\":\"Not Found\"}"
+                },
+                {
+                  "name": "409 Already paid or shipped",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"message\":\"An order in status PAID cannot be cancelled\",\"error\":\"Conflict\"}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel order again (idempotent)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                      "pm.test('still cancelled', () => pm.expect(pm.response.json().status).to.eql('CANCELLED'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-user-id",
+                    "value": "{{customerId}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/cancel"
+              },
+              "response": [
+                {
+                  "name": "201 Same result",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"status\":\"CANCELLED\",\"cancelReason\":\"CUSTOMER_CANCELLED\"}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin orders",
+          "item": [
+            {
+              "name": "List orders (admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('finds the order by number, with its customer', () => { pm.expect(b.items).to.have.lengthOf(1); pm.expect(b.items[0].orderNumber).to.eql(pm.collectionVariables.get('orderNumber')); pm.expect(b.items[0].customer.email).to.be.a('string'); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/admin/orders?status=CANCELLED&q={{orderNumber}}"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"items\":[{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"orderNumber\":\"VLX-20261017-ABCD1234\",\"status\":\"CANCELLED\",\"customer\":{\"id\":\"01a14546-e11a-72e7-915d-776cc87ff026\",\"email\":\"customer@voltix.test\",\"name\":\"Test Customer\"}}],\"meta\":{\"page\":1,\"pageSize\":20,\"total\":1,\"totalPages\":1}}"
+                },
+                {
+                  "name": "400 Invalid filter",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"userId\"],\"message\":\"Invalid UUID\"}]}"
+                }
+              ]
+            },
+            {
+              "name": "Get order (admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('cancelled order of the customer', () => { pm.expect(b.status).to.eql('CANCELLED'); pm.expect(b.customer.id).to.eql(pm.collectionVariables.get('customerId')); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/admin/orders/{{orderId}}"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"status\":\"CANCELLED\",\"customer\":{\"id\":\"01a14546-e11a-72e7-915d-776cc87ff026\",\"email\":\"customer@voltix.test\",\"name\":\"Test Customer\"}}"
+                },
+                {
+                  "name": "404 Not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Order not found\",\"error\":\"Not Found\"}"
+                }
+              ]
+            },
+            {
+              "name": "Ship order (409 not paid)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 409', () => pm.response.to.have.status(409));",
+                      "pm.test('explains why', () => pm.expect(pm.response.json().message).to.include('Only paid orders'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/admin/orders/{{orderId}}/ship"
+              },
+              "response": [
+                {
+                  "name": "200 Shipped (after payment, from Phase 10)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000000b01\",\"status\":\"SHIPPED\",\"shippedAt\":\"2026-10-18T09:00:00.000Z\"}"
+                },
+                {
+                  "name": "409 Not paid",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":409,\"message\":\"Only paid orders can be shipped (current status: CANCELLED)\",\"error\":\"Conflict\"}"
+                }
+              ]
+            },
+            {
+              "name": "Ship order (404 unknown id)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": ["pm.test('status is 404', () => pm.response.to.have.status(404));"]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/admin/orders/0192f5c4-0000-7000-8000-00000000dead/ship"
+              },
+              "response": [
+                {
+                  "name": "404 Not found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\"statusCode\":404,\"message\":\"Order not found\",\"error\":\"Not Found\"}"
+                }
+              ]
             }
           ]
         }

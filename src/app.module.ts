@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { CartModule } from './cart/cart.module';
 import { ReservationsModule } from './reservations/reservations.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ReservationsModule } from './reservations/reservations.module';
     InventoryModule,
     CartModule,
     ReservationsModule,
+    OrdersModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

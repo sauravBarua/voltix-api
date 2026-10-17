@@ -1,0 +1,91 @@
+import { Body, Controller, Get, Headers, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiHeader,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import type { Response } from 'express';
+import { CurrentUserId } from '../common/auth/current-user-id.decorator';
+import { DevUserGuard } from '../common/auth/dev-user.guard';
+import { IdParamDto } from '../common/schemas';
+import {
+  CheckoutDto,
+  CheckoutResultDto,
+  ListOrdersDto,
+  OrderDto,
+  OrderListDto,
+} from './orders.dto';
+import { OrdersService } from './orders.service';
+import { parseIdempotencyKey } from './orders.utils';
+
+@ApiTags('Orders')
+@ApiHeader({
+  name: 'x-user-id',
+  required: true,
+  description: 'TEMPORARY until Phase 13: id of the shopper (dev/test only, refused in production)',
+})
+@ApiUnauthorizedResponse({ description: 'Missing, invalid or unknown x-user-id' })
+@UseGuards(DevUserGuard)
+@Controller('orders')
+export class OrdersController {
+  constructor(private readonly service: OrdersService) {}
+
+  @Post('checkout')
+  @ApiOperation({
+    summary:
+      'Turn the cart into an order and reserve its stock (200 + replayed=true on a repeated key)',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description: '8-100 characters. Reuse the same key when retrying the same checkout.',
+  })
+  @ApiCreatedResponse({ type: CheckoutResultDto })
+  @ApiOkResponse({ type: CheckoutResultDto, description: 'Idempotent replay' })
+  @ApiBadRequestResponse({
+    description: 'Missing key, invalid address, empty cart or total too high',
+  })
+  @ApiConflictResponse({
+    description: 'Not enough stock, item unavailable, or another unpaid order exists',
+  })
+  async checkout(
+    @CurrentUserId() userId: string,
+    @Headers('idempotency-key') rawKey: string | undefined,
+    @Body() dto: CheckoutDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.service.checkout(userId, parseIdempotencyKey(rawKey), dto);
+    if (result.replayed) res.status(200);
+    return result;
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'My orders, newest first' })
+  @ApiOkResponse({ type: OrderListDto })
+  list(@CurrentUserId() userId: string, @Query() query: ListOrdersDto) {
+    return this.service.list(userId, query);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'One of my orders (404 for orders of other users)' })
+  @ApiOkResponse({ type: OrderDto })
+  @ApiNotFoundResponse()
+  get(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
+    return this.service.get(userId, params.id);
+  }
+
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Cancel an unpaid order and release its stock (idempotent)' })
+  @ApiOkResponse({ type: OrderDto })
+  @ApiNotFoundResponse()
+  @ApiConflictResponse({ description: 'The order is already paid or shipped' })
+  cancel(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
+    return this.service.cancel(userId, params.id);
+  }
+}
