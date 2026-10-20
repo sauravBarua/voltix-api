@@ -409,3 +409,35 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// Lease lock: one row per job, held while a worker runs it
+model JobLock {
+  name        String   @id
+  lockedUntil DateTime @map("locked_until") @db.Timestamptz(3)
+  lockedBy    String   @map("locked_by")
+
+  @@map("job_locks")
+}
+
+model JobRun {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  job        String
+  instance   String
+  startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
+  status     String    @default("RUNNING") // RUNNING | OK | FAILED
+  result     Json      @default("{}")
+  error      String?
+
+  @@index([job, startedAt(sort: Desc)])
+  @@map("job_runs")
+}
+
+// One row while a variant is "known to be low": the alert fires once, the row is removed on recovery
+model LowStockAlert {
+  variantId String   @id @map("variant_id") @db.Uuid
+  alertedAt DateTime @default(now()) @map("alerted_at") @db.Timestamptz(3)
+  available Int
+
+  @@map("low_stock_alerts")
+}

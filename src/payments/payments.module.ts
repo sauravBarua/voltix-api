@@ -11,6 +11,6 @@ import { StripeService } from './stripe.service';
   imports: [ReservationsModule],
   controllers: [PaymentsController, AdminPaymentsController, StripeWebhookController],
   providers: [StripeService, PaymentsService, StripeWebhookService],
-  exports: [PaymentsService, StripeService],
+  exports: [PaymentsService, StripeService, StripeWebhookService],
 })
 export class PaymentsModule {}

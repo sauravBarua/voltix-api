@@ -1,0 +1,103 @@
+{
+  "info": {
+    "name": "Voltix API - Phase 15 (Jobs)",
+    "description": "Background job status. Admin token required (run the Auth login first).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "adminToken", "value": "" },
+    { "key": "customerToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Admin jobs",
+      "item": [
+        {
+          "name": "Job status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, the five jobs in order', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.jobs.map(j => j.name)).to.eql(['reservation-expiry', 'low-stock-alerts', 'stock-reconciliation', 'payment-reconciliation', 'cleanup']);",
+                  "  pm.expect(b.healthy).to.be.a('boolean');",
+                  "});",
+                  "pm.test('each job has an interval and a run shape', () => pm.response.json().jobs.forEach(j => {",
+                  "  pm.expect(j.intervalSeconds).to.be.a('number');",
+                  "  if (j.lastRun) pm.expect(['RUNNING', 'OK', 'FAILED']).to.include(j.lastRun.status);",
+                  "}));"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/admin/jobs" },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"healthy\":true,\"jobs\":[{\"name\":\"reservation-expiry\",\"intervalSeconds\":30,\"healthy\":true,\"running\":false,\"lastSuccessAt\":\"2026-10-17T16:30:00.000Z\",\"lastRun\":{\"status\":\"OK\",\"instance\":\"HOST:1234:ab12cd34\",\"startedAt\":\"2026-10-17T16:30:00.000Z\",\"finishedAt\":\"2026-10-17T16:30:00.120Z\",\"durationMs\":120,\"result\":{\"expiredOrders\":0,\"failedOrders\":0},\"error\":null}}]}"
+            },
+            {
+              "name": "401 No token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"statusCode\":401,\"message\":\"Missing bearer token\",\"error\":\"Unauthorized\"}"
+            },
+            {
+              "name": "403 Not an administrator",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\"statusCode\":403,\"message\":\"Your role cannot access this resource\",\"error\":\"Forbidden\"}"
+            }
+          ]
+        },
+        {
+          "name": "Job status (403 as customer)",
+          "auth": {
+            "type": "bearer",
+            "bearer": [{ "key": "token", "value": "{{customerToken}}", "type": "string" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/admin/jobs" },
+          "response": []
+        },
+        {
+          "name": "Job status (401 no token)",
+          "auth": { "type": "noauth" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/admin/jobs" },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

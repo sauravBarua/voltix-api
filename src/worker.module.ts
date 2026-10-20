@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/env';
+import { JobsModule } from './jobs/jobs.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OutboxPublisherModule } from './outbox/outbox-publisher.module';
@@ -20,6 +21,7 @@ import { RedisModule } from './redis/redis.module';
     NotificationsModule,
     CacheInvalidationModule,
     RealtimeWorkerModule,
+    JobsModule,
   ],
 })
 export class WorkerModule {}

@@ -23,12 +23,27 @@ export class NotificationsConsumer implements OnModuleInit {
         'order.shipped',
         'payment.refunded',
         'payment.auto_refund_required',
+        'inventory.low_stock',
+        'inventory.reconciliation_mismatch',
       ],
       handle: (event) => this.handle(event),
     });
   }
 
   private handle(event: EventEnvelope) {
+    if (event.type === 'inventory.low_stock') {
+      const p = event.payload;
+      this.logger.warn(
+        `[notification] ${p.outOfStock === true ? 'OUT OF STOCK' : 'LOW STOCK'} sku=${String(p.sku)} available=${String(p.available)} reorderLevel=${String(p.reorderLevel)}`,
+      );
+      return;
+    }
+    if (event.type === 'inventory.reconciliation_mismatch') {
+      this.logger.error(
+        `[notification] ALERT admin: stock reconciliation found ${String(event.payload.count)} mismatching variant(s)`,
+      );
+      return;
+    }
     const orderId = String(event.payload.orderId);
     if (event.type === 'payment.auto_refund_required') {
       this.logger.warn(

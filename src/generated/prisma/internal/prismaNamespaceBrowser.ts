@@ -69,7 +69,10 @@ export const ModelName = {
   OutboxEvent: 'OutboxEvent',
   ProcessedMessage: 'ProcessedMessage',
   RefreshToken: 'RefreshToken',
-  AuditLog: 'AuditLog'
+  AuditLog: 'AuditLog',
+  JobLock: 'JobLock',
+  JobRun: 'JobRun',
+  LowStockAlert: 'LowStockAlert'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -359,6 +362,38 @@ export const AuditLogScalarFieldEnum = {
 } as const
 
 export type AuditLogScalarFieldEnum = (typeof AuditLogScalarFieldEnum)[keyof typeof AuditLogScalarFieldEnum]
+
+
+export const JobLockScalarFieldEnum = {
+  name: 'name',
+  lockedUntil: 'lockedUntil',
+  lockedBy: 'lockedBy'
+} as const
+
+export type JobLockScalarFieldEnum = (typeof JobLockScalarFieldEnum)[keyof typeof JobLockScalarFieldEnum]
+
+
+export const JobRunScalarFieldEnum = {
+  id: 'id',
+  job: 'job',
+  instance: 'instance',
+  startedAt: 'startedAt',
+  finishedAt: 'finishedAt',
+  status: 'status',
+  result: 'result',
+  error: 'error'
+} as const
+
+export type JobRunScalarFieldEnum = (typeof JobRunScalarFieldEnum)[keyof typeof JobRunScalarFieldEnum]
+
+
+export const LowStockAlertScalarFieldEnum = {
+  variantId: 'variantId',
+  alertedAt: 'alertedAt',
+  available: 'available'
+} as const
+
+export type LowStockAlertScalarFieldEnum = (typeof LowStockAlertScalarFieldEnum)[keyof typeof LowStockAlertScalarFieldEnum]
 
 
 export const SortOrder = {

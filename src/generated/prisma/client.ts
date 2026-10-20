@@ -134,3 +134,18 @@ export type RefreshToken = Prisma.RefreshTokenModel
  * 
  */
 export type AuditLog = Prisma.AuditLogModel
+/**
+ * Model JobLock
+ * 
+ */
+export type JobLock = Prisma.JobLockModel
+/**
+ * Model JobRun
+ * 
+ */
+export type JobRun = Prisma.JobRunModel
+/**
+ * Model LowStockAlert
+ * 
+ */
+export type LowStockAlert = Prisma.LowStockAlertModel

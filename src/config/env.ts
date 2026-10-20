@@ -36,6 +36,8 @@ export const envSchema = z
       .min(32, 'must be at least 32 characters (generate it, never type it)'),
     ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+    AUDIT_RETENTION_DAYS: z.coerce.number().int().min(90).max(3650).default(365),
+    JOBS_ENABLED: z.stringbool().optional(),
   })
   .refine((e) => e.NODE_ENV === 'production' || !e.STRIPE_SECRET_KEY.includes('_live_'), {
     message: 'Live Stripe keys are not allowed outside production',

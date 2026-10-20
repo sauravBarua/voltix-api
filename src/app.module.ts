@@ -11,6 +11,7 @@ import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter'
 import { validateEnv } from './config/env';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { JobsAdminModule } from './jobs/jobs-admin.module';
 import { OrdersModule } from './orders/orders.module';
 import { OutboxModule } from './outbox/outbox.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -37,6 +38,7 @@ import { ReservationsModule } from './reservations/reservations.module';
     OrdersModule,
     OutboxModule,
     RealtimeModule,
+    JobsAdminModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

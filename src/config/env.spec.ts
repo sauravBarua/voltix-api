@@ -22,8 +22,17 @@ describe('validateEnv', () => {
       TRUST_PROXY_HOPS: 0,
       ACCESS_TOKEN_TTL_MINUTES: 15,
       REFRESH_TOKEN_TTL_DAYS: 30,
+      AUDIT_RETENTION_DAYS: 365,
       ...base,
     });
+  });
+
+  it('validates the jobs variables', () => {
+    expect(() => validateEnv({ ...base, AUDIT_RETENTION_DAYS: '30' })).toThrow(
+      /AUDIT_RETENTION_DAYS/,
+    );
+    expect(validateEnv({ ...base, JOBS_ENABLED: 'false' }).JOBS_ENABLED).toBe(false);
+    expect(validateEnv(base).JOBS_ENABLED).toBeUndefined();
   });
 
   it('coerces PORT from string', () => {

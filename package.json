@@ -44,7 +44,15 @@
     "start:worker": "nest start --entryFile worker",
     "start:worker:dev": "nest start --watch --entryFile worker",
     "start:worker:prod": "node dist/worker",
-    "realtime:listen": "tsx scripts/realtime-listen.ts"
+    "realtime:listen": "tsx scripts/realtime-listen.ts",
+    "docker:up": "docker compose up -d --wait",
+    "docker:down": "docker compose down",
+    "docker:restart": "docker compose restart",
+    "docker:ps": "docker compose ps",
+    "docker:logs": "docker compose logs -f --tail=100",
+    "docker:reset": "docker compose down -v && docker compose up -d --wait",
+    "docker:psql": "docker compose exec postgres psql -U voltix -d voltix",
+    "docker:redis": "docker compose exec redis redis-cli"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

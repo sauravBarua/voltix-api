@@ -415,7 +415,10 @@ export const ModelName = {
   OutboxEvent: 'OutboxEvent',
   ProcessedMessage: 'ProcessedMessage',
   RefreshToken: 'RefreshToken',
-  AuditLog: 'AuditLog'
+  AuditLog: 'AuditLog',
+  JobLock: 'JobLock',
+  JobRun: 'JobRun',
+  LowStockAlert: 'LowStockAlert'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -431,7 +434,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "category" | "brand" | "product" | "productVariant" | "productImage" | "inventoryItem" | "inventoryMovement" | "cart" | "cartItem" | "order" | "orderItem" | "stockReservation" | "payment" | "stripeWebhookEvent" | "outboxEvent" | "processedMessage" | "refreshToken" | "auditLog"
+    modelProps: "user" | "category" | "brand" | "product" | "productVariant" | "productImage" | "inventoryItem" | "inventoryMovement" | "cart" | "cartItem" | "order" | "orderItem" | "stockReservation" | "payment" | "stripeWebhookEvent" | "outboxEvent" | "processedMessage" | "refreshToken" | "auditLog" | "jobLock" | "jobRun" | "lowStockAlert"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1841,6 +1844,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    JobLock: {
+      payload: Prisma.$JobLockPayload<ExtArgs>
+      fields: Prisma.JobLockFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.JobLockFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.JobLockFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>
+        }
+        findFirst: {
+          args: Prisma.JobLockFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.JobLockFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>
+        }
+        findMany: {
+          args: Prisma.JobLockFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>[]
+        }
+        create: {
+          args: Prisma.JobLockCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>
+        }
+        createMany: {
+          args: Prisma.JobLockCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.JobLockCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>[]
+        }
+        delete: {
+          args: Prisma.JobLockDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>
+        }
+        update: {
+          args: Prisma.JobLockUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>
+        }
+        deleteMany: {
+          args: Prisma.JobLockDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.JobLockUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.JobLockUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>[]
+        }
+        upsert: {
+          args: Prisma.JobLockUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobLockPayload>
+        }
+        aggregate: {
+          args: Prisma.JobLockAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateJobLock>
+        }
+        groupBy: {
+          args: Prisma.JobLockGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.JobLockGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.JobLockCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.JobLockCountAggregateOutputType> | number
+        }
+      }
+    }
+    JobRun: {
+      payload: Prisma.$JobRunPayload<ExtArgs>
+      fields: Prisma.JobRunFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.JobRunFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.JobRunFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>
+        }
+        findFirst: {
+          args: Prisma.JobRunFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.JobRunFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>
+        }
+        findMany: {
+          args: Prisma.JobRunFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>[]
+        }
+        create: {
+          args: Prisma.JobRunCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>
+        }
+        createMany: {
+          args: Prisma.JobRunCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.JobRunCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>[]
+        }
+        delete: {
+          args: Prisma.JobRunDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>
+        }
+        update: {
+          args: Prisma.JobRunUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>
+        }
+        deleteMany: {
+          args: Prisma.JobRunDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.JobRunUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.JobRunUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>[]
+        }
+        upsert: {
+          args: Prisma.JobRunUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JobRunPayload>
+        }
+        aggregate: {
+          args: Prisma.JobRunAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateJobRun>
+        }
+        groupBy: {
+          args: Prisma.JobRunGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.JobRunGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.JobRunCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.JobRunCountAggregateOutputType> | number
+        }
+      }
+    }
+    LowStockAlert: {
+      payload: Prisma.$LowStockAlertPayload<ExtArgs>
+      fields: Prisma.LowStockAlertFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.LowStockAlertFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.LowStockAlertFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>
+        }
+        findFirst: {
+          args: Prisma.LowStockAlertFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.LowStockAlertFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>
+        }
+        findMany: {
+          args: Prisma.LowStockAlertFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>[]
+        }
+        create: {
+          args: Prisma.LowStockAlertCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>
+        }
+        createMany: {
+          args: Prisma.LowStockAlertCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.LowStockAlertCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>[]
+        }
+        delete: {
+          args: Prisma.LowStockAlertDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>
+        }
+        update: {
+          args: Prisma.LowStockAlertUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>
+        }
+        deleteMany: {
+          args: Prisma.LowStockAlertDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.LowStockAlertUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.LowStockAlertUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>[]
+        }
+        upsert: {
+          args: Prisma.LowStockAlertUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LowStockAlertPayload>
+        }
+        aggregate: {
+          args: Prisma.LowStockAlertAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateLowStockAlert>
+        }
+        groupBy: {
+          args: Prisma.LowStockAlertGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LowStockAlertGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.LowStockAlertCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LowStockAlertCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2151,6 +2376,38 @@ export const AuditLogScalarFieldEnum = {
 } as const
 
 export type AuditLogScalarFieldEnum = (typeof AuditLogScalarFieldEnum)[keyof typeof AuditLogScalarFieldEnum]
+
+
+export const JobLockScalarFieldEnum = {
+  name: 'name',
+  lockedUntil: 'lockedUntil',
+  lockedBy: 'lockedBy'
+} as const
+
+export type JobLockScalarFieldEnum = (typeof JobLockScalarFieldEnum)[keyof typeof JobLockScalarFieldEnum]
+
+
+export const JobRunScalarFieldEnum = {
+  id: 'id',
+  job: 'job',
+  instance: 'instance',
+  startedAt: 'startedAt',
+  finishedAt: 'finishedAt',
+  status: 'status',
+  result: 'result',
+  error: 'error'
+} as const
+
+export type JobRunScalarFieldEnum = (typeof JobRunScalarFieldEnum)[keyof typeof JobRunScalarFieldEnum]
+
+
+export const LowStockAlertScalarFieldEnum = {
+  variantId: 'variantId',
+  alertedAt: 'alertedAt',
+  available: 'available'
+} as const
+
+export type LowStockAlertScalarFieldEnum = (typeof LowStockAlertScalarFieldEnum)[keyof typeof LowStockAlertScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -2529,6 +2786,9 @@ export type GlobalOmitConfig = {
   processedMessage?: Prisma.ProcessedMessageOmit
   refreshToken?: Prisma.RefreshTokenOmit
   auditLog?: Prisma.AuditLogOmit
+  jobLock?: Prisma.JobLockOmit
+  jobRun?: Prisma.JobRunOmit
+  lowStockAlert?: Prisma.LowStockAlertOmit
 }
 
 /* Types for Logging */
