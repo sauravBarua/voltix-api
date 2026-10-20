@@ -1,10 +1,11 @@
-import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post, StreamableFile } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
 import { Authenticated } from '../auth/access.decorators';
@@ -42,10 +43,14 @@ export class PaymentsController {
   }
 
   @Get(':id/invoice')
-  @ApiOperation({ summary: 'Stripe invoice links of a paid order (owner only)' })
-  @ApiOkResponse({ description: '{ number, hostedInvoiceUrl, pdfUrl }' })
-  @ApiNotFoundResponse({ description: 'Not your order, or the invoice is not ready yet' })
-  invoice(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
-    return this.invoices.forOwner(userId, params.id);
+  @ApiProduces('application/pdf')
+  @ApiOperation({ summary: 'Invoice PDF of a paid order (owner only)' })
+  @ApiNotFoundResponse({ description: 'Not your order, or not paid yet' })
+  async invoice(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
+    const { number, buffer } = await this.invoices.forOwner(userId, params.id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${number}.pdf"`,
+    });
   }
 }

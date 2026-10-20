@@ -42,6 +42,11 @@ export const envSchema = z
     SMTP_PORT: z.coerce.number().int().positive().optional(), // 465 = TLS from the start
     SMTP_USER: z.string().min(1).optional(),
     SMTP_PASS: z.string().min(1).optional(),
+    SELLER_NAME: z.string().min(1).default('Voltix'),
+    SELLER_ADDRESS: z.string().default(''),
+    SELLER_SIREN: z.string().optional(),
+    SELLER_VAT_NUMBER: z.string().optional(),
+    VAT_RATE_PERCENT: z.coerce.number().min(0).max(30).default(20),
     MAIL_FROM: z.string().min(3).optional(),
     MAIL_ENABLED: z.stringbool().optional(),
   })

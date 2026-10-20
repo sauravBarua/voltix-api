@@ -265,6 +265,7 @@ model Order {
   items        OrderItem[]
   reservations StockReservation[]
   payments     Payment[]
+  invoice      Invoice?
 
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
@@ -272,6 +273,24 @@ model Order {
   @@index([paidAt]) // partial in SQL (WHERE paid_at IS NOT NULL); see dashboard_indexes migration
   @@index([createdAt])
   @@map("orders")
+}
+
+model Invoice {
+  id       String   @id @default(uuid(7)) @db.Uuid
+  orderId  String   @unique @map("order_id") @db.Uuid
+  number   String   @unique
+  issuedAt DateTime @default(now()) @map("issued_at") @db.Timestamptz(3)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@map("invoices")
+}
+
+model InvoiceCounter {
+  year    Int @id
+  lastSeq Int @map("last_seq")
+
+  @@map("invoice_counters")
 }
 
 model OrderItem {

@@ -7,7 +7,6 @@ import type { EventEnvelope } from '../messaging/envelope';
 import { InvoicesService } from '../payments/invoices.service';
 
 const EMAIL_MAX_AGE_MS = 24 * 3_600_000; // never mail old orders after a long outage or a restart
-const INVOICE_WAIT_MS = 6 * 60_000; // after this, send without the invoice link
 
 /**
  * No mail provider yet: this logs the notification it would send. Swap the body of `handle` for your
@@ -90,19 +89,26 @@ export class NotificationsConsumer implements OnModuleInit {
     });
     if (!order) return;
 
-    const invoice = await this.invoices.findForOrder(orderId);
-    // Stripe finalizes the invoice a moment after payment: throwing makes the consumer retry (5 s, 30 s, 5 min)
-    if (!invoice && age < INVOICE_WAIT_MS) throw new Error('Stripe invoice not ready yet');
-
+    const invoice = await this.invoices.pdf(tx, orderId); // creates the number once, in this transaction
     const mail = orderPaidEmail({
       name: order.user.name,
       orderNumber: order.orderNumber,
       totalMinor: order.totalMinor,
       currency: order.currency,
-      invoice: invoice
-        ? { number: invoice.number, hostedUrl: invoice.hostedInvoiceUrl, pdfUrl: invoice.pdfUrl }
+      invoice: invoice ? { number: invoice.number } : undefined,
+    });
+    await this.mail.send({
+      to: order.user.email,
+      ...mail,
+      attachments: invoice
+        ? [
+            {
+              filename: `${invoice.number}.pdf`,
+              content: invoice.buffer,
+              contentType: 'application/pdf',
+            },
+          ]
         : undefined,
     });
-    await this.mail.send({ to: order.user.email, ...mail });
   }
 }

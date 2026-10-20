@@ -1,5 +1,14 @@
 import { Roles } from '../auth/access.decorators';
-import { Body, Controller, Headers, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Param,
+  Post,
+  StreamableFile,
+} from '@nestjs/common';
 import {
   ApiAcceptedResponse,
   ApiBadGatewayResponse,
@@ -8,11 +17,13 @@ import {
   ApiHeader,
   ApiNotFoundResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
 import { IdParamDto } from '../common/schemas';
 import { parseIdempotencyKey } from '../orders/orders.utils';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
+import { InvoicesService } from './invoices.service';
 import { RefundDto, RefundResultDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
@@ -21,7 +32,22 @@ import { PaymentsService } from './payments.service';
 @Roles('ADMIN')
 @Controller('admin/orders')
 export class AdminPaymentsController {
-  constructor(private readonly service: PaymentsService) {}
+  constructor(
+    private readonly service: PaymentsService,
+    private readonly invoices: InvoicesService,
+  ) {}
+
+  @Get(':id/invoice')
+  @ApiProduces('application/pdf')
+  @ApiOperation({ summary: 'Invoice PDF of any paid order' })
+  @ApiNotFoundResponse()
+  async invoice(@Param() params: IdParamDto) {
+    const { number, buffer } = await this.invoices.forAdmin(params.id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${number}.pdf"`,
+    });
+  }
 
   @RateLimit('strict')
   @Post(':id/refund')

@@ -3,7 +3,7 @@ export type OrderPaidEmailInput = {
   orderNumber: string;
   totalMinor: number;
   currency: string;
-  invoice?: { number: string | null; hostedUrl: string; pdfUrl: string };
+  invoice?: { number: string };
 };
 
 const escapeHtml = (s: string) =>
@@ -19,13 +19,11 @@ export const formatMoney = (minor: number, currency: string) =>
 export function orderPaidEmail(o: OrderPaidEmailInput) {
   const total = formatMoney(o.totalMinor, o.currency);
   const subject = `Voltix: payment received for order ${o.orderNumber}`;
-  const invoiceText = o.invoice
-    ? `\nInvoice${o.invoice.number ? ` ${o.invoice.number}` : ''}: ${o.invoice.hostedUrl}\nPDF: ${o.invoice.pdfUrl}\n`
-    : '\nYour invoice will be available in your order history shortly.\n';
+  const invoiceText = o.invoice ? `\nYour invoice ${o.invoice.number} is attached (PDF).\n` : '';
   const text = `Hello ${o.name},\n\nThank you for your order ${o.orderNumber}. We received your payment of ${total}.\n${invoiceText}\nWe will let you know when it ships.\n\nVoltix`;
   const invoiceHtml = o.invoice
-    ? `<p><a href="${escapeHtml(o.invoice.hostedUrl)}">View your invoice${o.invoice.number ? ` ${escapeHtml(o.invoice.number)}` : ''}</a> · <a href="${escapeHtml(o.invoice.pdfUrl)}">Download the PDF</a></p>`
-    : '<p>Your invoice will be available in your order history shortly.</p>';
+    ? `<p>Your invoice <strong>${escapeHtml(o.invoice.number)}</strong> is attached (PDF).</p>`
+    : '';
   const html = `<p>Hello ${escapeHtml(o.name)},</p><p>Thank you for your order <strong>${escapeHtml(o.orderNumber)}</strong>. We received your payment of <strong>${escapeHtml(total)}</strong>.</p>${invoiceHtml}<p>We will let you know when it ships.</p><p>Voltix</p>`;
   return { subject, text, html };
 }

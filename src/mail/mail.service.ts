@@ -2,10 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type Transporter, createTransport } from 'nodemailer';
 import type { Env } from '../config/env';
+import { PoisonMessageError } from '../messaging/envelope';
 
-export type Mail = { to: string; subject: string; text: string; html: string };
+export type Mail = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
+};
 
-/** Plain SMTP. Disabled (log only) without settings, and always off under NODE_ENV=test. */
+// Problems that retrying cannot fix: park the message at once
+const PERMANENT = new Set(['EAUTH', 'EENVELOPE']);
+
+/** Plain SMTP. Log-only without settings, and always off under NODE_ENV=test. */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -24,7 +34,6 @@ export class MailService {
       Boolean(host && user && pass) &&
       (config.get('MAIL_ENABLED', { infer: true }) ??
         config.get('NODE_ENV', { infer: true }) !== 'test');
-
     this.transporter = this.enabled
       ? createTransport({
           host,
@@ -33,7 +42,7 @@ export class MailService {
           auth: { user, pass },
           connectionTimeout: 10_000,
           greetingTimeout: 10_000,
-          socketTimeout: 15_000,
+          socketTimeout: 20_000,
         })
       : null;
     this.logger.log(
@@ -43,10 +52,17 @@ export class MailService {
     );
   }
 
-  /** Throws on failure so the consumer retries. Never logs the body or the password. */
   async send(mail: Mail): Promise<void> {
     if (!this.transporter) return;
-    await this.transporter.sendMail({ from: this.from, ...mail });
-    this.logger.log(`Email sent: "${mail.subject}"`);
+    try {
+      await this.transporter.sendMail({ from: this.from, ...mail });
+    } catch (error) {
+      const code = (error as { code?: unknown }).code;
+      const message = `SMTP ${String(code ?? 'error')}: ${error instanceof Error ? error.message : String(error)}`;
+      throw typeof code === 'string' && PERMANENT.has(code)
+        ? new PoisonMessageError(message)
+        : new Error(message);
+    }
+    this.logger.log(`Email sent: "${mail.subject}"`); // never log the body, attachment or password
   }
 }

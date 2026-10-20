@@ -23,6 +23,9 @@ describe('validateEnv', () => {
       ACCESS_TOKEN_TTL_MINUTES: 15,
       REFRESH_TOKEN_TTL_DAYS: 30,
       AUDIT_RETENTION_DAYS: 365,
+      SELLER_NAME: 'Voltix',
+      SELLER_ADDRESS: '',
+      VAT_RATE_PERCENT: 20,
       ...base,
     });
   });
@@ -114,11 +117,16 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: 'short' })).toThrow(/JWT_ACCESS_SECRET/);
   });
 
-  it('requires the SMTP settings together', () => {
+  it('requires SMTP_HOST, SMTP_USER and SMTP_PASS together', () => {
+    const smtp = { SMTP_HOST: 'smtp.example.com', SMTP_USER: 'user', SMTP_PASS: 'pass' };
     expect(() => validateEnv({ ...base, SMTP_HOST: 'smtp.example.com' })).toThrow(/SMTP_HOST/);
-    expect(validateEnv({ ...base, SMTP_HOST: 'h', SMTP_USER: 'u', SMTP_PASS: 'p' }).SMTP_HOST).toBe(
-      'h',
+    expect(() => validateEnv({ ...base, ...smtp, SMTP_PASS: undefined })).toThrow(
+      /must be set together/,
     );
+    expect(validateEnv({ ...base, ...smtp, SMTP_PORT: '465' })).toMatchObject({
+      ...smtp,
+      SMTP_PORT: 465,
+    });
     expect(validateEnv(base).SMTP_HOST).toBeUndefined();
   });
 });
