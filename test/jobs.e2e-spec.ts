@@ -95,6 +95,8 @@ describe('Background jobs (e2e)', () => {
   });
 
   afterAll(async () => {
+    await prisma.payment.deleteMany({ where: { order: { orderNumber: { startsWith: 'JOB' } } } });
+    await prisma.order.deleteMany({ where: { orderNumber: { startsWith: 'JOBL-' } } });
     for (const id of orders) {
       await prisma.$transaction(async (tx) => {
         await reservations.release(tx, id);
@@ -106,7 +108,8 @@ describe('Background jobs (e2e)', () => {
     }
     await prisma.outboxEvent.deleteMany({ where: { aggregateType: 'e2e-jobs' } });
     await prisma.processedMessage.deleteMany({ where: { consumer: 'e2e-jobs' } });
-    await prisma.jobLock.deleteMany({ where: { name: 'e2e-slow' } });
+    await prisma.jobRun.deleteMany({ where: { job: { startsWith: 'e2e-' } } });
+    await prisma.jobLock.deleteMany({ where: { name: { startsWith: 'e2e-' } } });
     await worker?.close();
     await app?.close();
   });
@@ -211,6 +214,7 @@ describe('Background jobs (e2e)', () => {
       },
       select: { id: true },
     });
+    orders.push(order.id);
     const payment = await prisma.payment.create({
       data: {
         orderId: order.id,
@@ -248,6 +252,8 @@ describe('Background jobs (e2e)', () => {
 
   // ── scheduler ──
   it('lets only one worker run a job at a time, and records every run', async () => {
+    await prisma.jobRun.deleteMany({ where: { job: 'e2e-slow' } });
+    await prisma.jobLock.deleteMany({ where: { name: 'e2e-slow' } });
     let started = 0;
     scheduler.register({
       name: 'e2e-slow',

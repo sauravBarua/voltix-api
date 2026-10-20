@@ -269,6 +269,8 @@ model Order {
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([paidAt]) // partial in SQL (WHERE paid_at IS NOT NULL); see dashboard_indexes migration
+  @@index([createdAt])
   @@map("orders")
 }
 

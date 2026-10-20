@@ -44,6 +44,9 @@ const ROUTES: [Method, string, Role[] | 'public'][] = [
   ['get', '/admin/outbox/summary', ADMIN],
   ['get', '/admin/users', ADMIN],
   ['get', '/admin/audit-logs', ADMIN],
+  ['get', '/admin/dashboard/kpis', ADMIN],
+  ['get', '/admin/dashboard/recent-orders', ADMIN],
+  ['get', '/admin/dashboard/inventory/summary', INVENTORY],
   ['get', '/auth/me', ALL],
   ['post', '/auth/logout-all', ALL],
 ];
