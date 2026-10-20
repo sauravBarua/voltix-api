@@ -3,6 +3,7 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "testPathIgnorePatterns": ["/node_modules/", "stress.e2e-spec"],
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },

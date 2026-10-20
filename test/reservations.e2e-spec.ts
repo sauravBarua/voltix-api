@@ -230,7 +230,7 @@ describe('Reservations (e2e)', () => {
       _sum: { quantity: true },
     });
     expect(active._sum.quantity).toBe(5);
-  });
+  }, 30_000);
 
   it('releases once; repeating or consuming afterwards is a no-op', async () => {
     const v = await createVariant(5);

@@ -113,4 +113,12 @@ describe('validateEnv', () => {
     );
     expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: 'short' })).toThrow(/JWT_ACCESS_SECRET/);
   });
+
+  it('requires the SMTP settings together', () => {
+    expect(() => validateEnv({ ...base, SMTP_HOST: 'smtp.example.com' })).toThrow(/SMTP_HOST/);
+    expect(validateEnv({ ...base, SMTP_HOST: 'h', SMTP_USER: 'u', SMTP_PASS: 'p' }).SMTP_HOST).toBe(
+      'h',
+    );
+    expect(validateEnv(base).SMTP_HOST).toBeUndefined();
+  });
 });

@@ -1,4 +1,4 @@
-import { Controller, HttpCode, Param, Post } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiConflictResponse,
@@ -11,6 +11,7 @@ import { Authenticated } from '../auth/access.decorators';
 import { CurrentUserId } from '../common/auth/current-user-id.decorator';
 import { IdParamDto } from '../common/schemas';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
+import { InvoicesService } from './invoices.service';
 import { PayResultDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
@@ -18,7 +19,10 @@ import { PaymentsService } from './payments.service';
 @Authenticated()
 @Controller('orders')
 export class PaymentsController {
-  constructor(private readonly service: PaymentsService) {}
+  constructor(
+    private readonly service: PaymentsService,
+    private readonly invoices: InvoicesService,
+  ) {}
 
   @RateLimit('strict')
   @Post(':id/pay')
@@ -35,5 +39,13 @@ export class PaymentsController {
   @ApiBadGatewayResponse({ description: 'Stripe returned an error' })
   pay(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
     return this.service.createCheckoutSession(userId, params.id);
+  }
+
+  @Get(':id/invoice')
+  @ApiOperation({ summary: 'Stripe invoice links of a paid order (owner only)' })
+  @ApiOkResponse({ description: '{ number, hostedInvoiceUrl, pdfUrl }' })
+  @ApiNotFoundResponse({ description: 'Not your order, or the invoice is not ready yet' })
+  invoice(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
+    return this.invoices.forOwner(userId, params.id);
   }
 }

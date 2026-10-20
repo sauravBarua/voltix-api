@@ -38,11 +38,26 @@ export const envSchema = z
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
     AUDIT_RETENTION_DAYS: z.coerce.number().int().min(90).max(3650).default(365),
     JOBS_ENABLED: z.stringbool().optional(),
+    SMTP_HOST: z.string().min(1).optional(),
+    SMTP_PORT: z.coerce.number().int().positive().optional(), // 465 = TLS from the start
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASS: z.string().min(1).optional(),
+    MAIL_FROM: z.string().min(3).optional(),
+    MAIL_ENABLED: z.stringbool().optional(),
   })
   .refine((e) => e.NODE_ENV === 'production' || !e.STRIPE_SECRET_KEY.includes('_live_'), {
     message: 'Live Stripe keys are not allowed outside production',
     path: ['STRIPE_SECRET_KEY'],
-  });
+  })
+  .refine(
+    (e) =>
+      [e.SMTP_HOST, e.SMTP_USER, e.SMTP_PASS].every(Boolean) ||
+      ![e.SMTP_HOST, e.SMTP_USER, e.SMTP_PASS].some(Boolean),
+    {
+      message: 'SMTP_HOST, SMTP_USER and SMTP_PASS must be set together',
+      path: ['SMTP_HOST'],
+    },
+  );
 
 export type Env = z.infer<typeof envSchema>;
 

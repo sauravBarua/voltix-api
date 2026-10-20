@@ -13,6 +13,8 @@ export default async function globalSetup() {
       .withDatabase('voltix')
       .withUsername('voltix')
       .withPassword('voltix')
+      // Each test process opens its own pool (max 30), so the default 100 is tight
+      .withCommand(['postgres', '-c', 'max_connections=300'])
       .start(),
     new RedisContainer('redis:7-alpine').start(),
     new RabbitMQContainer('rabbitmq:4-management-alpine')

@@ -200,6 +200,10 @@ export class PaymentsService implements OnModuleInit {
           metadata,
           payment_intent_data: { metadata },
           expires_at: expiresAtUnix,
+          invoice_creation: {
+            enabled: true,
+            invoice_data: { description: `Order ${order.orderNumber}`, metadata },
+          },
           success_url: `${this.stripe.frontendUrl}/checkout/success?order=${order.id}`,
           cancel_url: `${this.stripe.frontendUrl}/checkout/cancel?order=${order.id}`,
         },

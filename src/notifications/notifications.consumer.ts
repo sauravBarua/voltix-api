@@ -1,6 +1,13 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumerRunner } from '../messaging/consumer.runner';
+import type { Prisma } from '../generated/prisma/client';
+import { MailService } from '../mail/mail.service';
+import { orderPaidEmail } from '../mail/order-paid.email';
 import type { EventEnvelope } from '../messaging/envelope';
+import { InvoicesService } from '../payments/invoices.service';
+
+const EMAIL_MAX_AGE_MS = 24 * 3_600_000; // never mail old orders after a long outage or a restart
+const INVOICE_WAIT_MS = 6 * 60_000; // after this, send without the invoice link
 
 /**
  * No mail provider yet: this logs the notification it would send. Swap the body of `handle` for your
@@ -11,7 +18,11 @@ import type { EventEnvelope } from '../messaging/envelope';
 export class NotificationsConsumer implements OnModuleInit {
   private readonly logger = new Logger(NotificationsConsumer.name);
 
-  constructor(private readonly runner: ConsumerRunner) {}
+  constructor(
+    private readonly runner: ConsumerRunner,
+    private readonly mail: MailService,
+    private readonly invoices: InvoicesService,
+  ) {}
 
   onModuleInit() {
     return this.runner.register({
@@ -26,11 +37,11 @@ export class NotificationsConsumer implements OnModuleInit {
         'inventory.low_stock',
         'inventory.reconciliation_mismatch',
       ],
-      handle: (event) => this.handle(event),
+      handle: (event, tx) => this.handle(event, tx),
     });
   }
 
-  private handle(event: EventEnvelope) {
+  private async handle(event: EventEnvelope, tx: Prisma.TransactionClient) {
     if (event.type === 'inventory.low_stock') {
       const p = event.payload;
       this.logger.warn(
@@ -51,6 +62,47 @@ export class NotificationsConsumer implements OnModuleInit {
       );
       return;
     }
+    if (event.type === 'order.paid') await this.emailOrderPaid(event, orderId, tx);
     this.logger.log(`[notification] ${event.type} order=${orderId}`);
+  }
+
+  private async emailOrderPaid(
+    event: EventEnvelope,
+    orderId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    if (!this.mail.enabled) return;
+    const age = Date.now() - Date.parse(event.occurredAt);
+    if (age > EMAIL_MAX_AGE_MS) {
+      this.logger.warn(
+        `Order ${orderId}: confirmation email skipped, event is ${Math.round(age / 3_600_000)} h old`,
+      );
+      return;
+    }
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        orderNumber: true,
+        totalMinor: true,
+        currency: true,
+        user: { select: { email: true, name: true } },
+      },
+    });
+    if (!order) return;
+
+    const invoice = await this.invoices.findForOrder(orderId);
+    // Stripe finalizes the invoice a moment after payment: throwing makes the consumer retry (5 s, 30 s, 5 min)
+    if (!invoice && age < INVOICE_WAIT_MS) throw new Error('Stripe invoice not ready yet');
+
+    const mail = orderPaidEmail({
+      name: order.user.name,
+      orderNumber: order.orderNumber,
+      totalMinor: order.totalMinor,
+      currency: order.currency,
+      invoice: invoice
+        ? { number: invoice.number, hostedUrl: invoice.hostedInvoiceUrl, pdfUrl: invoice.pdfUrl }
+        : undefined,
+    });
+    await this.mail.send({ to: order.user.email, ...mail });
   }
 }
