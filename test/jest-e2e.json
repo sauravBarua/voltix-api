@@ -8,5 +8,12 @@
   },
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
-  }
+  },
+  "collectCoverageFrom": [
+    "../src/**/*.ts",
+    "!../src/generated/**",
+    "!../src/main.ts",
+    "!../src/worker.ts"
+  ],
+  "coverageDirectory": "../coverage/e2e"
 }

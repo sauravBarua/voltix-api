@@ -359,8 +359,12 @@ export class StripeWebhookService {
     await tx.$queryRaw`SELECT id FROM payments WHERE id = ${found.id}::uuid FOR UPDATE`;
     const payment = await tx.payment.findUniqueOrThrow({
       where: { id: found.id },
-      select: { id: true, orderId: true, amountMinor: true, refundedMinor: true },
+      select: { id: true, orderId: true, amountMinor: true, refundedMinor: true, status: true },
     });
+    // Out of order: a failed-payment event stored the intent id before checkout.session.completed settled the
+    // payment. Refunding now would hide the payment from the completed event, so ask Stripe to retry later.
+    if (payment.status === 'PENDING')
+      throw new ConflictException('Payment not settled yet, retry later');
 
     // Totals only ever grow: an older event delivered late cannot lower them
     const total = Math.min(charge.amount_refunded, payment.amountMinor);
