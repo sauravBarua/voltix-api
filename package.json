@@ -4,6 +4,7 @@
   "description": "",
   "author": "",
   "private": true,
+  "packageManager": "pnpm@12.11.2",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=24"
@@ -54,7 +55,11 @@
     "docker:logs": "docker compose logs -f --tail=100",
     "docker:reset": "docker compose down -v && docker compose up -d --wait",
     "docker:psql": "docker compose exec postgres psql -U voltix -d voltix",
-    "docker:redis": "docker compose exec redis redis-cli"
+    "docker:redis": "docker compose exec redis redis-cli",
+    "docker:build": "docker compose --profile app build",
+    "docker:app:up": "docker compose --profile app up -d --build",
+    "docker:app:down": "docker compose --profile app down",
+    "docker:app:logs": "docker compose --profile app logs -f api worker"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

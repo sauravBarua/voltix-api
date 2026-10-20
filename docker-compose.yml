@@ -1,3 +1,19 @@
+x-app: &app
+  image: voltix-api:local
+  build:
+    context: .
+    target: runtime
+  env_file: .env # secrets and settings; the hostnames below override the localhost URLs it holds
+  environment: &app-env
+    NODE_ENV: production
+    DATABASE_URL: postgresql://voltix:voltix@postgres:5432/voltix
+    REDIS_URL: redis://redis:6379
+    RABBITMQ_URL: amqp://voltix:voltix@rabbitmq:5672
+  init: true # a real PID 1 that forwards SIGTERM, so Nest's shutdown hooks run
+  restart: unless-stopped
+  stop_grace_period: 30s # lets a job or a message in flight finish
+  profiles: [app]
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -58,6 +74,77 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # One-shot: applies pending migrations, then exits. The API and worker wait for it.
+  migrate:
+    image: voltix-api-tools:local
+    build:
+      context: .
+      target: tools
+    environment:
+      DATABASE_URL: postgresql://voltix:voltix@postgres:5432/voltix
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    profiles: [app, seed]
+
+  api:
+    <<: *app
+    container_name: voltix-api
+    command: ['node', 'dist/main.js']
+    ports:
+      - '3000:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      # readiness: 200 only while the database answers (Redis is informational)
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *app
+    container_name: voltix-worker
+    command: ['node', 'dist/worker.js']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # Dev convenience, run by hand: docker compose --profile seed run --rm seed
+  seed:
+    image: voltix-api-tools:local
+    command: ['pnpm', 'exec', 'tsx', 'prisma/seed.ts']
+    env_file: .env
+    environment:
+      NODE_ENV: development # the seed refuses the default password when NODE_ENV=production
+      DATABASE_URL: postgresql://voltix:voltix@postgres:5432/voltix
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: 'no'
+    profiles: [seed, app]
 
 volumes:
   postgres_data:
