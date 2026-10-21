@@ -3851,6 +3851,42 @@
       ]
     },
     {
+      "name": "15 Contact",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Send contact message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 (or 503 when mail is not configured)', () => pm.expect([202, 503]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"Camille Martin\", \"email\": \"camille@example.com\", \"subject\": \"Ma commande\", \"message\": \"Bonjour, ma commande est-elle partie ?\" }"
+            },
+            "url": "{{baseUrl}}/api/v1/contact"
+          }
+        }
+      ]
+    },
+    {
       "name": "99 Cleanup (run last)",
       "auth": {
         "type": "bearer",
