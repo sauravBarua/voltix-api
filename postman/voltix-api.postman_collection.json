@@ -393,6 +393,34 @@
           }
         },
         {
+          "name": "Update my name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 and name updated', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().name).to.eql('Camille Martin'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"Camille Martin\" }"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/me"
+          }
+        },
+        {
           "name": "Me (admin)",
           "event": [
             {

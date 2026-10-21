@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -19,6 +19,7 @@ import {
   LoginDto,
   RefreshDto,
   RegisterDto,
+  UpdateProfileDto,
   UserDto,
 } from './auth.dto';
 import { AuthService, type RequestMeta } from './auth.service';
@@ -109,5 +110,13 @@ export class AuthController {
   @ApiOkResponse({ type: UserDto })
   me(@CurrentUserId() userId: string) {
     return this.service.me(userId);
+  }
+
+  @Patch('me')
+  @Authenticated()
+  @ApiOperation({ summary: 'Update my display name (the e-mail cannot be changed yet)' })
+  @ApiOkResponse({ type: UserDto })
+  updateMe(@CurrentUserId() userId: string, @Body() dto: UpdateProfileDto) {
+    return this.service.updateProfile(userId, dto);
   }
 }

@@ -237,8 +237,8 @@ export class PaymentsService implements OnModuleInit {
           metadata,
           payment_intent_data: { metadata },
           expires_at: expiresAtUnix,
-          success_url: `${this.stripe.frontendUrl}/commande/confirmation?order=${order.id}`,
-          cancel_url: `${this.stripe.frontendUrl}/commande/confirmation?order=${order.id}&annule=1`,
+          success_url: `${this.stripe.frontendUrl}/checkout/confirmation?order=${order.id}`,
+          cancel_url: `${this.stripe.frontendUrl}/checkout/confirmation?order=${order.id}&cancelled=1`,
         },
         { idempotencyKey },
       );
