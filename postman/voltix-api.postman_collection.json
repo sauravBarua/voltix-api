@@ -118,6 +118,22 @@
     {
       "key": "staffId",
       "value": ""
+    },
+    {
+      "key": "newOperatorPassword",
+      "value": "Operator-Pass-2026!"
+    },
+    {
+      "key": "newOperatorEmail",
+      "value": ""
+    },
+    {
+      "key": "newOperatorId",
+      "value": ""
+    },
+    {
+      "key": "newOperatorToken",
+      "value": ""
     }
   ],
   "item": [
@@ -2282,6 +2298,25 @@
           }
         },
         {
+          "name": "Sync payment (owner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with status and paymentStatus', () => { pm.response.to.have.status(200); const b = pm.response.json(); pm.expect(b.status).to.be.a('string'); pm.expect(['paid','unpaid']).to.include(b.paymentStatus); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/sync-payment"
+          }
+        },
+        {
           "name": "Pay again (same open session)",
           "event": [
             {
@@ -3367,6 +3402,422 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/v1/admin/audit-logs?from=2026-12-01T00:00:00Z&to=2026-01-01T00:00:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Operator management (admin)",
+      "description": "Admin creates an inventory operator, the operator logs in and is checked against RBAC, then is deactivated. Run after 00 Setup.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{adminToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Create inventory operator",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('newOperatorEmail', 'operator-' + Date.now() + '@voltix.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 operator, no password in the body', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.role).to.eql('INVENTORY_OPERATOR');",
+                  "  pm.expect(b.isActive).to.be.true;",
+                  "  pm.expect(JSON.stringify(b)).to.not.match(/password/i);",
+                  "});",
+                  "pm.collectionVariables.set('newOperatorId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{newOperatorEmail}}\",\n  \"name\": \"Stock Manager\",\n  \"password\": \"{{newOperatorPassword}}\",\n  \"role\": \"INVENTORY_OPERATOR\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"id\":\"0192f5c4-0000-7000-8000-000000001002\",\"email\":\"operator-1@voltix.test\",\"name\":\"Stock Manager\",\"role\":\"INVENTORY_OPERATOR\",\"isActive\":true,\"createdAt\":\"2026-10-20T15:00:00.000Z\"}"
+            },
+            {
+              "name": "400 Weak password or invalid role",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":400,\"message\":\"Validation failed\",\"errors\":[{\"path\":[\"password\"],\"message\":\"at least 10 characters\"}]}"
+            },
+            {
+              "name": "409 Email already registered",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"statusCode\":409,\"message\":\"A record with the same unique value already exists\"}"
+            }
+          ]
+        },
+        {
+          "name": "Create operator (400 weak password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"weak-{{$timestamp}}@voltix.test\", \"name\": \"Weak\", \"password\": \"short\", \"role\": \"INVENTORY_OPERATOR\" }"
+            }
+          }
+        },
+        {
+          "name": "List operators",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, only operators', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const items = pm.response.json().items;",
+                  "  pm.expect(items.every(u => u.role === 'INVENTORY_OPERATOR')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/users?role=INVENTORY_OPERATOR&pageSize=20"
+          }
+        },
+        {
+          "name": "Login as the new operator",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 INVENTORY_OPERATOR', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().user.role).to.eql('INVENTORY_OPERATOR'); });",
+                  "pm.collectionVariables.set('newOperatorToken', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{newOperatorEmail}}\", \"password\": \"{{newOperatorPassword}}\" }"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "New operator: list inventory (allowed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/inventory?status=low",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newOperatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "New operator: list reservations (allowed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newOperatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "New operator: inventory dashboard summary (allowed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/dashboard/inventory/summary",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newOperatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "New operator: sales KPIs (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/dashboard/kpis",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newOperatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "New operator: admin orders (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newOperatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "New operator: users (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newOperatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "No token: inventory (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/inventory",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Deactivate the new operator",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 inactive', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().isActive).to.be.false; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/users/{{newOperatorId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"isActive\": false }"
+            }
+          }
+        },
+        {
+          "name": "Deactivated operator is locked out (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/inventory",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newOperatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         }
       ]

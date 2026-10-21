@@ -21,6 +21,7 @@ import {
   sessionExpiryUnix,
 } from './payments.utils';
 import { StripeService } from './stripe.service';
+import { StripeWebhookService } from './stripe-webhook.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -47,6 +48,7 @@ export class PaymentsService implements OnModuleInit {
     private readonly stripe: StripeService,
     private readonly reservations: ReservationsService,
     private readonly hooks: ReservationHooks,
+    private readonly webhook: StripeWebhookService,
   ) {}
 
   onModuleInit() {
@@ -68,6 +70,41 @@ export class PaymentsService implements OnModuleInit {
       timeout: 20_000,
       maxWait: 5_000,
     });
+  }
+
+  /** Confirms an order from Stripe's own answer when the webhook is late. Safe to call repeatedly. */
+  async syncPayment(userId: string, orderId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { orderId, order: { userId } },
+      orderBy: { createdAt: 'desc' },
+      select: { stripeSessionId: true, status: true },
+    });
+    if (!payment) throw new NotFoundException('Order not found');
+
+    let paymentStatus: 'paid' | 'unpaid' = payment.status === 'PAID' ? 'paid' : 'unpaid';
+    if (payment.status === 'PENDING' && payment.stripeSessionId) {
+      let session: Stripe.Checkout.Session;
+      try {
+        session = await this.stripe.client.checkout.sessions.retrieve(payment.stripeSessionId);
+      } catch (error) {
+        throw this.stripeFailure(error);
+      }
+      if (session.payment_status === 'paid') {
+        await this.webhook.applyPaidSession(session);
+        paymentStatus = 'paid';
+      }
+    }
+
+    const order = await this.prisma.order.findFirstOrThrow({
+      where: { id: orderId, userId },
+      select: { id: true, orderNumber: true, status: true },
+    });
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus,
+    };
   }
 
   /**
@@ -200,8 +237,8 @@ export class PaymentsService implements OnModuleInit {
           metadata,
           payment_intent_data: { metadata },
           expires_at: expiresAtUnix,
-          success_url: `${this.stripe.frontendUrl}/checkout/success?order=${order.id}`,
-          cancel_url: `${this.stripe.frontendUrl}/checkout/cancel?order=${order.id}`,
+          success_url: `${this.stripe.frontendUrl}/commande/confirmation?order=${order.id}`,
+          cancel_url: `${this.stripe.frontendUrl}/commande/confirmation?order=${order.id}&annule=1`,
         },
         { idempotencyKey },
       );

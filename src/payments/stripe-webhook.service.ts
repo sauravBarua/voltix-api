@@ -53,16 +53,32 @@ export class StripeWebhookService {
       { timeout: 15_000 },
     );
 
+    await this.runAfter(after, event.id);
+    return { status };
+  }
+
+  private async runAfter(after: After, ref: string) {
     for (const run of after) {
       try {
         await run();
       } catch (error) {
         this.logger.error(
-          `Post-commit action failed for event ${event.id}: ${error instanceof Error ? error.message : String(error)}`,
+          `Post-commit action failed for ${ref}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
-    return { status };
+  }
+
+  /** Applies a paid Checkout Session fetched from Stripe (sync-payment). Same code path as the webhook. */
+  async applyPaidSession(session: Stripe.Checkout.Session): Promise<void> {
+    const after: After = [];
+    await this.prisma.$transaction(
+      async (tx) => {
+        await this.onSessionCompleted(tx, session, after);
+      },
+      { timeout: 15_000 },
+    );
+    await this.runAfter(after, session.id);
   }
 
   /** false = this event id was already processed (concurrent duplicates wait on the unique index). */
@@ -93,6 +109,9 @@ export class StripeWebhookService {
   // ───────── checkout.session.completed ─────────
 
   private async onSessionCompleted(tx: Tx, session: Stripe.Checkout.Session, after: After) {
+    // The webhook and sync-payment have different "event ids", so the dedupe table can't serialize them.
+    // An advisory lock (not a row lock) does, without touching the reservations → payment → order lock order.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'stripe-session:' + session.id}))`;
     if (session.payment_status !== 'paid') {
       this.logger.warn(
         `Session ${session.id} completed but not paid (${session.payment_status}), ignored`,
