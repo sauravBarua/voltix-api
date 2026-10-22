@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MediaModule } from '../media/media.module';
+import { AdminProductsController } from './admin/admin-products.controller';
+import { AdminProductsService } from './admin/admin-products.service';
 import { BrandsController } from './brands/brands.controller';
 import { BrandsService } from './brands/brands.service';
 import { CatalogCacheService } from './catalog-cache.service';
@@ -13,12 +15,19 @@ import { VariantsService } from './variants/variants.service';
 
 @Module({
   imports: [MediaModule],
-  controllers: [CategoriesController, BrandsController, ProductsController, VariantsController],
+  controllers: [
+    CategoriesController,
+    BrandsController,
+    ProductsController,
+    VariantsController,
+    AdminProductsController,
+  ],
   providers: [
     CategoriesService,
     BrandsService,
     ProductsService,
     VariantsService,
+    AdminProductsService,
     CatalogCacheService,
     CatalogInvalidationInterceptor,
   ],

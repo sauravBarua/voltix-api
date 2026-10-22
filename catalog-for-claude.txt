@@ -1,0 +1,822 @@
+]633;E;{   for f in $(find src/catalog -name "*.dto.ts")\x3b do echo "=== $f ==="\x3b cat "$f"\x3b done\x3b   echo "=== PRISMA MODELS ==="\x3b   awk '/^model [A-Za-z]*(Product|Variant|Image|Brand|Category|Inventory|Stock|Reservation|Movement)[A-Za-z]* \\{/ {p=1} p {print} /^\\}/ {p=0}' $(find prisma -name "*.prisma")\x3b   for f in src/catalog/products/products.controller.ts src/catalog/products/products.service.ts\x3b do echo "=== $f ==="\x3b cat "$f"\x3b done\x3b } > catalog-for-claude.txt;c4d88c47-c9d5-4bd1-ae92-9da4a1254f36]633;C=== src/catalog/brands/brands.dto.ts ===
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+import { hasAtLeastOneField, slugSchema } from '../../common/schemas';
+
+const createBrandSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  slug: slugSchema.optional(),
+});
+
+const updateBrandSchema = createBrandSchema
+  .partial()
+  .refine(hasAtLeastOneField, 'At least one field is required');
+
+const brandResponse = z.object({ id: z.uuid(), name: z.string(), slug: z.string() });
+
+export class CreateBrandDto extends createZodDto(createBrandSchema) {}
+export class UpdateBrandDto extends createZodDto(updateBrandSchema) {}
+export class BrandDto extends createZodDto(brandResponse) {}
+=== src/catalog/categories/categories.dto.ts ===
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+import { hasAtLeastOneField, slugSchema } from '../../common/schemas';
+
+// No .default() in write DTOs: Zod 4 applies defaults inside optional fields,
+// which would silently reset values on PATCH. Defaults live in the Prisma schema.
+const createCategorySchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  slug: slugSchema.optional(),
+  parentId: z.uuid().optional(),
+});
+
+const updateCategorySchema = z
+  .object({
+    name: z.string().trim().min(2).max(100),
+    slug: slugSchema,
+    parentId: z.uuid().nullable(),
+  })
+  .partial()
+  .refine(hasAtLeastOneField, 'At least one field is required');
+
+const categoryResponse = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  slug: z.string(),
+  parentId: z.uuid().nullable(),
+});
+
+export class CreateCategoryDto extends createZodDto(createCategorySchema) {}
+export class UpdateCategoryDto extends createZodDto(updateCategorySchema) {}
+export class CategoryDto extends createZodDto(categoryResponse) {}
+=== src/catalog/products/products.dto.ts ===
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+import { slugSchema } from '../../common/schemas';
+import { variantResponseSchema } from '../variants/variants.dto';
+
+export const createProductSchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  slug: slugSchema.optional(),
+  description: z.string().max(5000).optional(),
+  brandId: z.uuid(),
+  categoryId: z.uuid(),
+  specs: z.record(z.string(), z.unknown()).describe('Validated against the category specs schema'),
+  warrantyMonths: z.number().int().min(0).max(120).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const updateProductSchema = createProductSchema.partial().extend({
+  removeImageIds: z.array(z.uuid()).max(20).optional().describe('Product images to delete'),
+  primaryImageId: z.uuid().optional().describe('Existing image to make primary'),
+});
+
+const listProductsSchema = z
+  .object({
+    q: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .optional()
+      .describe('Matches product name, brand name or SKU'),
+    brand: z.string().max(200).optional().describe('Comma-separated brand slugs'),
+    category: slugSchema.optional().describe('Category slug (includes its children)'),
+    minPrice: z.coerce.number().int().min(0).optional().describe('Minor units (cents)'),
+    maxPrice: z.coerce.number().int().min(0).optional().describe('Minor units (cents)'),
+    specs: z.string().max(1000).optional().describe('URL-encoded flat JSON, e.g. {"os":"macOS"}'),
+    attributes: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe('URL-encoded flat JSON, e.g. {"ramGb":16}'),
+    sort: z.enum(['newest', 'name_asc', 'name_desc', 'price_asc', 'price_desc']).default('newest'),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((q) => q.minPrice === undefined || q.maxPrice === undefined || q.minPrice <= q.maxPrice, {
+    message: 'minPrice must be <= maxPrice',
+    path: ['maxPrice'],
+  });
+
+const ref = z.object({ id: z.uuid(), name: z.string(), slug: z.string() });
+
+const productSummary = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  slug: z.string(),
+  brand: ref,
+  category: ref,
+  imageUrl: z.string().nullable(),
+  priceFromMinor: z.number().int().nullable(),
+  currency: z.string().nullable(),
+  inStock: z.boolean(),
+});
+
+const productDetail = productSummary.extend({
+  description: z.string(),
+  specs: z.record(z.string(), z.unknown()),
+  warrantyMonths: z.number().int(),
+  images: z.array(
+    z.object({
+      id: z.uuid(),
+      url: z.string(),
+      isPrimary: z.boolean(),
+      variantId: z.uuid().nullable(),
+    }),
+  ),
+  variants: z.array(variantResponseSchema),
+});
+
+const productList = z.object({
+  items: z.array(productSummary),
+  meta: z.object({
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    total: z.number().int(),
+    totalPages: z.number().int(),
+  }),
+});
+
+export class CreateProductDto extends createZodDto(createProductSchema) {}
+/** Plain types (not ZodDto classes) so the global ZodValidationPipe skips the raw multipart `data` string. */
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export class UpdateProductDto extends createZodDto(updateProductSchema) {}
+export class ListProductsDto extends createZodDto(listProductsSchema) {}
+export class ProductDetailDto extends createZodDto(productDetail) {}
+export class ProductListDto extends createZodDto(productList) {}
+export class ProductImageParamDto extends createZodDto(
+  z.object({ id: z.uuid(), imageId: z.uuid() }),
+) {}
+=== src/catalog/variants/variants.dto.ts ===
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+const variantAttributes = z.looseObject({
+  ramGb: z.number().int().positive().optional(),
+  storageGb: z.number().int().positive().optional(),
+  color: z.string().min(1).optional(),
+});
+
+export const createVariantSchema = z.object({
+  sku: z
+    .string()
+    .regex(
+      /^[A-Z0-9][A-Z0-9._-]{2,63}$/,
+      'uppercase letters, digits, dot, underscore, hyphen (3-64 chars)',
+    ),
+  name: z.string().trim().min(1).max(150),
+  attributes: variantAttributes.optional(),
+  priceMinor: z.number().int().min(0).max(100_000_000),
+  reorderLevel: z.number().int().min(0).max(100_000).optional(),
+  isActive: z.boolean().optional(),
+});
+
+// SKU is the identity of a variant and reorderLevel belongs to Inventory (Phase 6)
+export const updateVariantSchema = createVariantSchema
+  .omit({ sku: true, reorderLevel: true })
+  .partial()
+  .extend({ removeImage: z.boolean().optional().describe('Delete the current variant image') });
+
+export const variantResponseSchema = z.object({
+  id: z.uuid(),
+  sku: z.string(),
+  name: z.string(),
+  attributes: z.record(z.string(), z.unknown()),
+  priceMinor: z.number().int(),
+  currency: z.string(),
+  isActive: z.boolean(),
+  available: z
+    .number()
+    .int()
+    .describe('on_hand - reserved (informational, never the stock authority)'),
+});
+
+export class CreateVariantDto extends createZodDto(createVariantSchema) {}
+/** Plain types (not ZodDto classes) so the global ZodValidationPipe skips the raw multipart `data` string. */
+export type CreateVariantInput = z.infer<typeof createVariantSchema>;
+export type UpdateVariantInput = z.infer<typeof updateVariantSchema>;
+export class UpdateVariantDto extends createZodDto(updateVariantSchema) {}
+export class VariantDto extends createZodDto(variantResponseSchema) {}
+=== PRISMA MODELS ===
+model Category {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String
+  slug      String   @unique
+  parentId  String?  @map("parent_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+model Brand {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products Product[]
+
+  @@map("brands")
+}
+model Product {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  name           String
+  slug           String   @unique
+  description    String   @default("")
+  brandId        String   @map("brand_id") @db.Uuid
+  categoryId     String   @map("category_id") @db.Uuid
+  specs          Json     @default("{}")
+  warrantyMonths Int      @default(24) @map("warranty_months")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  brand    Brand            @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  category Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  variants ProductVariant[]
+  images   ProductImage[]
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([isActive])
+  @@map("products")
+}
+model ProductVariant {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  sku        String   @unique
+  name       String
+  attributes Json     @default("{}")
+  priceMinor Int      @map("price_minor")
+  currency   String   @default("EUR") @db.Char(3)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventory    InventoryItem?
+  images       ProductImage[]
+  cartItems    CartItem[]
+  reservations StockReservation[]
+  movements    InventoryMovement[]
+  orderItems   OrderItem[]
+
+  @@index([productId])
+  @@index([priceMinor])
+  @@map("product_variants")
+}
+model ProductImage {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  variantId String?  @map("variant_id") @db.Uuid
+  secureUrl String   @map("secure_url")
+  publicId  String   @unique @map("public_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([productId, position])
+  @@index([variantId])
+  @@map("product_images")
+}
+model InventoryItem {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  variantId    String   @unique @map("variant_id") @db.Uuid
+  onHand       Int      @default(0) @map("on_hand")
+  reserved     Int      @default(0)
+  reorderLevel Int      @default(5) @map("reorder_level")
+  version      Int      @default(0)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_items")
+}
+model InventoryMovement {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  variantId     String       @map("variant_id") @db.Uuid
+  type          MovementType
+  deltaOnHand   Int          @map("delta_on_hand")
+  deltaReserved Int          @map("delta_reserved")
+  reason        String?
+  referenceType String?      @map("reference_type")
+  referenceId   String?      @map("reference_id")
+  actorId       String?      @map("actor_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  // NULL references (manual operations) are never considered duplicates by Postgres
+  @@unique([referenceType, referenceId, variantId, type])
+  @@index([variantId, createdAt])
+  @@index([createdAt])
+  @@map("inventory_movements")
+}
+model StockReservation {
+  id         String            @id @default(uuid(7)) @db.Uuid
+  orderId    String            @map("order_id") @db.Uuid
+  variantId  String            @map("variant_id") @db.Uuid
+  quantity   Int
+  status     ReservationStatus @default(ACTIVE)
+  expiresAt  DateTime          @map("expires_at") @db.Timestamptz(3)
+  resolvedAt DateTime?         @map("resolved_at") @db.Timestamptz(3)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, variantId])
+  @@index([status, expiresAt])
+  @@index([variantId, status])
+  @@map("stock_reservations")
+}
+model LowStockAlert {
+  variantId String   @id @map("variant_id") @db.Uuid
+  alertedAt DateTime @default(now()) @map("alerted_at") @db.Timestamptz(3)
+  available Int
+
+  @@map("low_stock_alerts")
+}
+=== src/catalog/products/products.controller.ts ===
+import { Public, Roles } from '../../auth/access.decorators';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiConflictResponse,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiPayloadTooLargeResponse,
+  ApiTags,
+  ApiUnsupportedMediaTypeResponse,
+} from '@nestjs/swagger';
+import { IdParamDto, SlugParamDto } from '../../common/schemas';
+import { CatalogCacheService } from '../catalog-cache.service';
+import { CatalogInvalidationInterceptor } from '../catalog-invalidation.interceptor';
+import { ParseJsonDataPipe } from '../../common/pipes/parse-json-data.pipe';
+import { imageUploadOptions, multipartBody } from '../../media/image-upload';
+import { MAX_FILES_PER_REQUEST } from '../../media/media.constants';
+import { RateLimit } from '../../rate-limit/rate-limit.decorator';
+import {
+  type CreateProductInput,
+  ListProductsDto,
+  ProductDetailDto,
+  ProductImageParamDto,
+  ProductListDto,
+  type UpdateProductInput,
+  createProductSchema,
+  updateProductSchema,
+} from './products.dto';
+import { ProductsService } from './products.service';
+
+const createExample = JSON.stringify({
+  name: 'Dell XPS 15',
+  brandId: '<brand uuid>',
+  categoryId: '<category uuid>',
+  specs: { cpu: 'Intel Core i7', screenSizeInch: 15.6, os: 'Windows 11' },
+});
+const updateExample = JSON.stringify({ description: 'New text', removeImageIds: ['<image uuid>'] });
+
+@ApiTags('Products')
+@Roles('ADMIN')
+@Controller('products')
+@UseInterceptors(CatalogInvalidationInterceptor)
+export class ProductsController {
+  constructor(
+    private readonly service: ProductsService,
+    private readonly cache: CatalogCacheService,
+  ) {}
+
+  @Public()
+  @Get()
+  @ApiOperation({ summary: 'Search and filter products (public)' })
+  @ApiOkResponse({ type: ProductListDto })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters' })
+  list(@Query() query: ListProductsDto) {
+    return this.cache.listProducts(query);
+  }
+
+  @Public()
+  @Get(':slug')
+  @ApiOperation({ summary: 'Product detail with active variants (public)' })
+  @ApiOkResponse({ type: ProductDetailDto })
+  @ApiNotFoundResponse()
+  get(@Param() params: SlugParamDto) {
+    return this.cache.getProduct(params.slug);
+  }
+
+  @RateLimit('upload')
+  @Post()
+  @UseInterceptors(FilesInterceptor('images', MAX_FILES_PER_REQUEST, imageUploadOptions))
+  @ApiOperation({ summary: 'Create a product with optional images (admin, guarded from Phase 13)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(multipartBody({ field: 'images', dataExample: createExample, dataRequired: true }))
+  @ApiCreatedResponse({ type: ProductDetailDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid data JSON, invalid specs for the category, or unexpected file field',
+  })
+  @ApiConflictResponse({ description: 'Slug already exists' })
+  @ApiPayloadTooLargeResponse({ description: 'Image larger than 5 MB' })
+  @ApiUnsupportedMediaTypeResponse({
+    description: 'Only jpeg, png, webp and avif images are accepted',
+  })
+  create(
+    @Body('data', new ParseJsonDataPipe(createProductSchema)) dto: CreateProductInput,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    return this.service.create(dto, files);
+  }
+
+  @RateLimit('upload')
+  @Patch(':id')
+  @UseInterceptors(FilesInterceptor('images', MAX_FILES_PER_REQUEST, imageUploadOptions))
+  @ApiOperation({
+    summary:
+      'Update a product; add images, remove them via removeImageIds (specs are replaced, not merged)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(multipartBody({ field: 'images', dataExample: updateExample, dataRequired: false }))
+  @ApiOkResponse({ type: ProductDetailDto })
+  @ApiBadRequestResponse({
+    description: 'Nothing to update, invalid data, or image id not on this product',
+  })
+  @ApiNotFoundResponse()
+  @ApiPayloadTooLargeResponse()
+  @ApiUnsupportedMediaTypeResponse()
+  update(
+    @Param() params: IdParamDto,
+    @Body('data', new ParseJsonDataPipe(updateProductSchema, { required: false }))
+    dto: UpdateProductInput,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    return this.service.update(params.id, dto, files);
+  }
+
+  @Delete(':id/images/:imageId')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete one product image (also deletes the Cloudinary asset)' })
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse()
+  async removeImage(@Param() params: ProductImageParamDto) {
+    await this.service.removeImage(params.id, params.imageId);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Deactivate a product (soft delete, images are kept)' })
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse()
+  async remove(@Param() params: IdParamDto) {
+    await this.service.deactivate(params.id);
+  }
+}
+=== src/catalog/products/products.service.ts ===
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { z } from 'zod';
+import type { Prisma } from '../../generated/prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { resolveSlug } from '../../common/utils/slugify';
+import { MAX_IMAGES_PER_PRODUCT, PRODUCT_IMAGE_FOLDER } from '../../media/media.constants';
+import { MediaService } from '../../media/media.service';
+import { getSpecsSchema } from '../specs/specs.schemas';
+import {
+  type ProductRow,
+  mapProductDetail,
+  mapProductDetailStatic,
+  mapProductStatic,
+  productInclude,
+} from './product.mapper';
+import type { CreateProductDto, ListProductsDto, UpdateProductDto } from './products.dto';
+
+const ORDER_BY: Record<
+  'newest' | 'name_asc' | 'name_desc',
+  Prisma.ProductOrderByWithRelationInput[]
+> = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+  name_asc: [{ name: 'asc' }, { id: 'asc' }],
+  name_desc: [{ name: 'desc' }, { id: 'desc' }],
+};
+
+const jsonFilterSchema = z.record(
+  z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,40}$/),
+  z.union([z.string(), z.number(), z.boolean()]),
+);
+
+function splitCsv(value?: string): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** '{"os":"macOS"}' -> Prisma JSON path filters (equality only). */
+function parseJsonFilter(raw: string | undefined, name: string) {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new BadRequestException(`${name} must be a valid JSON object`);
+  }
+  const result = jsonFilterSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new BadRequestException(
+      `${name} must be a flat JSON object of string, number or boolean values`,
+    );
+  }
+  return Object.entries(result.data).map(([key, value]) => ({ path: [key], equals: value }));
+}
+
+@Injectable()
+export class ProductsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly media: MediaService,
+  ) {}
+
+  async list(query: ListProductsDto) {
+    const { page, pageSize, sort } = query;
+    const { where, variantWhere } = this.buildWhere(query);
+    const include = productInclude(variantWhere);
+    const meta = (total: number) => ({
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    });
+
+    if (sort === 'price_asc' || sort === 'price_desc') {
+      // Prisma cannot order by MIN(variant price), so rank ids first (lightweight), then hydrate one page.
+      // Fine for a few thousand products; denormalize min price later if the catalog grows.
+      const rows = await this.prisma.product.findMany({
+        where,
+        select: { id: true, variants: { where: variantWhere, select: { priceMinor: true } } },
+      });
+      const dir = sort === 'price_asc' ? 1 : -1;
+      const ids = rows
+        .map((r) => ({ id: r.id, min: Math.min(...r.variants.map((v) => v.priceMinor)) }))
+        .sort((a, b) => dir * (a.min - b.min) || a.id.localeCompare(b.id))
+        .slice((page - 1) * pageSize, page * pageSize)
+        .map((r) => r.id);
+      const products = await this.prisma.product.findMany({ where: { id: { in: ids } }, include });
+      const byId = new Map(products.map((p) => [p.id, p]));
+      const items = ids.map((id) => byId.get(id)).filter((p): p is ProductRow => p !== undefined);
+      return { items: items.map(mapProductStatic), meta: meta(rows.length) };
+    }
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        include,
+        orderBy: ORDER_BY[sort],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { items: rows.map(mapProductStatic), meta: meta(total) };
+  }
+
+  async getBySlug(slug: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { slug, isActive: true },
+      include: productInclude({ isActive: true }),
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    return mapProductDetailStatic(product);
+  }
+
+  async create(dto: CreateProductDto, files?: Express.Multer.File[]) {
+    // Validate everything that can be validated BEFORE uploading anything
+    const category = await this.getCategory(dto.categoryId);
+    await this.assertBrandExists(dto.brandId);
+    const specs = this.validateSpecs(category, dto.specs);
+
+    return this.media.withUploads(files, PRODUCT_IMAGE_FOLDER, async (images) => {
+      const product = await this.prisma.product.create({
+        data: {
+          name: dto.name,
+          slug: resolveSlug(dto.name, dto.slug),
+          description: dto.description,
+          brandId: dto.brandId,
+          categoryId: dto.categoryId,
+          specs,
+          warrantyMonths: dto.warrantyMonths,
+          isActive: dto.isActive,
+          images: {
+            create: images.map((img, i) => ({
+              secureUrl: img.secureUrl,
+              publicId: img.publicId,
+              isPrimary: i === 0,
+              position: i,
+            })),
+          },
+        },
+        include: productInclude({}),
+      });
+      return mapProductDetail(product);
+    });
+  }
+
+  async update(id: string, dto: UpdateProductDto, files?: Express.Multer.File[]) {
+    const { removeImageIds = [], primaryImageId, ...fields } = dto;
+
+    const existing = await this.prisma.product.findUnique({
+      where: { id },
+      select: {
+        categoryId: true,
+        specs: true,
+        // Variant images are managed through the variant endpoints
+        images: {
+          where: { variantId: null },
+          orderBy: { position: 'asc' },
+          select: { id: true, publicId: true, isPrimary: true, position: true },
+        },
+      },
+    });
+    if (!existing) throw new NotFoundException('Product not found');
+
+    const hasFieldChange = Object.values(fields).some((v) => v !== undefined);
+    if (!hasFieldChange && !removeImageIds.length && !primaryImageId && !files?.length) {
+      throw new BadRequestException('Nothing to update');
+    }
+    if (fields.brandId) await this.assertBrandExists(fields.brandId);
+
+    // Re-validate specs whenever the specs or the category change (specs are replaced, not merged)
+    let specs: Prisma.InputJsonObject | undefined;
+    if (fields.specs !== undefined || fields.categoryId !== undefined) {
+      const category = await this.getCategory(fields.categoryId ?? existing.categoryId);
+      specs = this.validateSpecs(category, fields.specs ?? existing.specs);
+    }
+
+    const knownIds = new Set(existing.images.map((i) => i.id));
+    for (const imageId of [...removeImageIds, ...(primaryImageId ? [primaryImageId] : [])]) {
+      if (!knownIds.has(imageId)) {
+        throw new BadRequestException(`Image ${imageId} does not belong to this product`);
+      }
+    }
+    if (primaryImageId && removeImageIds.includes(primaryImageId)) {
+      throw new BadRequestException('primaryImageId cannot also be removed');
+    }
+
+    const removed = existing.images.filter((i) => removeImageIds.includes(i.id));
+    const remaining = existing.images.filter((i) => !removeImageIds.includes(i.id));
+    if (remaining.length + (files?.length ?? 0) > MAX_IMAGES_PER_PRODUCT) {
+      throw new BadRequestException(`A product can have at most ${MAX_IMAGES_PER_PRODUCT} images`);
+    }
+
+    const product = await this.media.withUploads(files, PRODUCT_IMAGE_FOLDER, (uploaded) => {
+      // Keep the requested/current primary; if none is left, the first new image becomes primary
+      const primaryId =
+        primaryImageId ?? remaining.find((i) => i.isPrimary)?.id ?? remaining[0]?.id;
+      const nextPosition = remaining.length ? Math.max(...remaining.map((i) => i.position)) + 1 : 0;
+      const imagesChanged =
+        removed.length > 0 || uploaded.length > 0 || primaryImageId !== undefined;
+
+      return this.prisma.$transaction(async (tx) => {
+        if (imagesChanged) {
+          if (removed.length) {
+            await tx.productImage.deleteMany({ where: { id: { in: removed.map((i) => i.id) } } });
+          }
+          // The partial unique index allows one primary: unset first, then set
+          await tx.productImage.updateMany({
+            where: { productId: id, isPrimary: true },
+            data: { isPrimary: false },
+          });
+          if (primaryId) {
+            await tx.productImage.update({ where: { id: primaryId }, data: { isPrimary: true } });
+          }
+          if (uploaded.length) {
+            await tx.productImage.createMany({
+              data: uploaded.map((img, i) => ({
+                productId: id,
+                secureUrl: img.secureUrl,
+                publicId: img.publicId,
+                position: nextPosition + i,
+                isPrimary: primaryImageId === undefined && i === 0,
+              })),
+            });
+          }
+        }
+        // Last, so the returned product includes the final images
+        return tx.product.update({
+          where: { id },
+          data: { ...fields, specs },
+          include: productInclude({}),
+        });
+      });
+    });
+
+    // Only after the DB commit: a failure above must never lose an existing image
+    await this.media.deleteAssets(removed.map((i) => i.publicId));
+    return mapProductDetail(product);
+  }
+
+  async removeImage(productId: string, imageId: string) {
+    const image = await this.prisma.productImage.findFirst({
+      where: { id: imageId, productId, variantId: null },
+      select: { id: true },
+    });
+    if (!image) throw new NotFoundException('Image not found');
+    await this.update(productId, { removeImageIds: [imageId] });
+  }
+
+  /** Soft delete: products with sales or stock history are never removed. */
+  async deactivate(id: string) {
+    await this.prisma.product.update({ where: { id }, data: { isActive: false } });
+  }
+
+  private buildWhere(q: ListProductsDto) {
+    const variantWhere: Prisma.ProductVariantWhereInput = {
+      isActive: true,
+      priceMinor: { gte: q.minPrice, lte: q.maxPrice },
+      AND: parseJsonFilter(q.attributes, 'attributes').map((attributes) => ({ attributes })),
+    };
+
+    const and: Prisma.ProductWhereInput[] = parseJsonFilter(q.specs, 'specs').map((specs) => ({
+      specs,
+    }));
+    const brands = splitCsv(q.brand);
+    if (brands.length) and.push({ brand: { slug: { in: brands } } });
+    if (q.category) {
+      and.push({ category: { OR: [{ slug: q.category }, { parent: { slug: q.category } }] } });
+    }
+    if (q.q) {
+      and.push({
+        OR: [
+          { name: { contains: q.q, mode: 'insensitive' } },
+          { brand: { name: { contains: q.q, mode: 'insensitive' } } },
+          { variants: { some: { sku: { contains: q.q, mode: 'insensitive' } } } },
+        ],
+      });
+    }
+
+    // Public listing: active product with at least one active variant matching the variant filters
+    const where: Prisma.ProductWhereInput = {
+      isActive: true,
+      variants: { some: variantWhere },
+      AND: and,
+    };
+    return { where, variantWhere };
+  }
+
+  private async getCategory(id: string) {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      select: { slug: true, parent: { select: { slug: true } } },
+    });
+    if (!category) throw new BadRequestException('categoryId does not exist');
+    return category;
+  }
+
+  private async assertBrandExists(id: string) {
+    if ((await this.prisma.brand.count({ where: { id } })) === 0) {
+      throw new BadRequestException('brandId does not exist');
+    }
+  }
+
+  private validateSpecs(
+    category: { slug: string; parent: { slug: string } | null },
+    specs: unknown,
+  ): Prisma.InputJsonObject {
+    const result = getSpecsSchema(category.slug, category.parent?.slug).safeParse(specs);
+    if (!result.success) {
+      throw new BadRequestException({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: `Invalid specs for category "${category.slug}"`,
+        errors: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      });
+    }
+    return result.data as Prisma.InputJsonObject;
+  }
+}
