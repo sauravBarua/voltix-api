@@ -1,0 +1,178 @@
+]633;E;{   for f in src/auth/access.guard.ts src/auth/auth.types.ts\x3b do echo "=== $f ==="\x3b cat "$f"\x3b done\x3b   echo "=== ROLES / userViewSchema in auth.dto.ts ==="\x3b   grep -n -B1 -A12 -E "ROLES|userViewSchema" src/auth/auth.dto.ts\x3b   echo "=== seed + scripts ==="\x3b   ls prisma 2>/dev/null\x3b find prisma -name "seed*" -type f 2>/dev/null\x3b   grep -n -A25 '"scripts"' package.json\x3b   grep -n -A6 -E '"prisma"' package.json\x3b   echo "=== role usages ==="\x3b   grep -rn "'ADMIN'" src --include=*.ts -l | sort\x3b } > super-admin-for-claude.txt;c4d88c47-c9d5-4bd1-ae92-9da4a1254f36]633;C=== src/auth/access.guard.ts ===
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { ACCESS_KEY, type Access } from './access.decorators';
+import type { AuthedRequest } from './auth.types';
+import { TokensService } from './tokens.service';
+
+export const bearerToken = (header: string | undefined): string | null =>
+  /^Bearer\s+(\S+)$/i.exec(header ?? '')?.[1] ?? null;
+
+/**
+ * Global guard. Default deny: a handler without an explicit policy is refused.
+ * The role and active flag come from the database, so a change applies to the very next request.
+ */
+@Injectable()
+export class AccessGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly tokens: TokensService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType() !== 'http') return true;
+
+    const access = this.reflector.getAllAndOverride<Access | undefined>(ACCESS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (access === 'public') return true;
+    if (!access) throw new ForbiddenException('This route has no access policy');
+
+    const req = context.switchToHttp().getRequest<AuthedRequest>();
+    const token = bearerToken(req.headers.authorization);
+    if (!token) throw new UnauthorizedException('Missing bearer token');
+
+    const userId = await this.tokens.verifyAccess(token);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+    if (!user?.isActive) throw new UnauthorizedException('Invalid or expired token');
+
+    if (!access.includes(user.role)) {
+      await this.audit.record({
+        actorId: user.id,
+        actorEmail: user.email,
+        actorRole: user.role,
+        action: 'access.denied',
+        outcome: 'FAILURE',
+        ip: req.ip,
+        metadata: { method: req.method, path: req.path },
+      });
+      throw new ForbiddenException('Your role cannot access this resource');
+    }
+
+    req.user = { id: user.id, email: user.email, role: user.role };
+    req.userId = user.id;
+    return true;
+  }
+}
+=== src/auth/auth.types.ts ===
+import type { Request } from 'express';
+import type { Role } from '../generated/prisma/client';
+
+export type AuthUser = { id: string; email: string; role: Role };
+export type AuthedRequest = Request & { user?: AuthUser; userId?: string };
+=== ROLES / userViewSchema in auth.dto.ts ===
+3-
+4:export const ROLES = ['CUSTOMER', 'INVENTORY_OPERATOR', 'ADMIN'] as const;
+5-
+6-export const emailSchema = z.string().trim().toLowerCase().email().max(254);
+7-export const passwordSchema = z.string().min(10, 'at least 10 characters').max(128);
+8-
+9-const registerSchema = z.object({
+10-  email: emailSchema,
+11-  password: passwordSchema,
+12-  name: z.string().trim().min(2).max(100),
+13-});
+14-const loginSchema = z.object({ email: emailSchema, password: z.string().min(1).max(128) });
+15-const refreshSchema = z.object({ refreshToken: z.string().min(20).max(200) });
+16-const changePasswordSchema = z.object({
+--
+21-
+22:export const userViewSchema = z.object({
+23-  id: z.uuid(),
+24-  email: z.string(),
+25-  name: z.string(),
+26:  role: z.enum(ROLES),
+27-  isActive: z.boolean(),
+28-  createdAt: z.string(),
+29-});
+30-
+31-const tokensSchema = z.object({
+32-  tokenType: z.literal('Bearer'),
+33-  accessToken: z.string(),
+34-  expiresIn: z.number().int().describe('Access token lifetime in seconds'),
+35-  refreshToken: z.string().describe('Single use: every refresh returns a new one'),
+36:  user: userViewSchema,
+37-});
+38-
+39-export class RegisterDto extends createZodDto(registerSchema) {}
+40-export class LoginDto extends createZodDto(loginSchema) {}
+41-export class RefreshDto extends createZodDto(refreshSchema) {}
+42-export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
+43-export class UpdateProfileDto extends createZodDto(updateProfileSchema) {}
+44:export class UserDto extends createZodDto(userViewSchema) {}
+45-export class AuthTokensDto extends createZodDto(tokensSchema) {}
+=== seed + scripts ===
+migrations/
+schema.prisma
+seed.ts
+prisma/seed.ts
+21:  "scripts": {
+22-    "build": "nest build",
+23-    "deploy": "nest deploy",
+24-    "format": "prettier --write .",
+25-    "format:check": "prettier --check .",
+26-    "typecheck": "tsc --noEmit",
+27-    "start": "nest start",
+28-    "start:dev": "nest start --watch",
+29-    "start:debug": "nest start --debug --watch",
+30-    "start:prod": "node dist/main",
+31-    "lint": "oxlint --type-aware src/ test/",
+32-    "lint:fix": "oxlint --type-aware --fix src/ test/",
+33-    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+34-    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
+35-    "test:int": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-int.json --maxWorkers=1 --workerIdleMemoryLimit=1GB",
+36-    "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
+37-    "test:e2e:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --coverage",
+38-    "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+39-    "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
+40-    "prepare": "husky",
+41-    "db:generate": "prisma generate",
+42-    "db:migrate": "prisma migrate dev",
+43-    "db:deploy": "prisma migrate deploy",
+44-    "db:seed": "prisma db seed",
+45-    "db:reset": "prisma migrate reset --force",
+46-    "db:studio": "prisma studio",
+115:    "prisma": "^7.10.0",
+116-    "socket.io-client": "^4.8.4",
+117-    "source-map-support": "^0.5.21",
+118-    "supertest": "^7.0.0",
+119-    "testcontainers": "^12.2.1",
+120-    "ts-jest": "^29.4.0",
+121-    "ts-loader": "^9.5.2",
+=== role usages ===
+src/audit/audit.controller.ts
+src/audit/audit.interceptor.ts
+src/auth/access.decorators.ts
+src/auth/auth.dto.ts
+src/auth/users-admin.controller.ts
+src/auth/users-admin.service.ts
+src/catalog/admin/admin-products.controller.ts
+src/catalog/brands/brands.controller.ts
+src/catalog/categories/categories.controller.ts
+src/catalog/products/products.controller.ts
+src/catalog/variants/variants.controller.ts
+src/dashboard/dashboard.controller.ts
+src/dashboard/dashboard-inventory.controller.ts
+src/generated/prisma/enums.ts
+src/inventory/inventory.controller.ts
+src/jobs/jobs-admin.controller.ts
+src/orders/admin-orders.controller.ts
+src/outbox/outbox-admin.controller.ts
+src/payments/admin-payments.controller.ts
+src/realtime/realtime.messages.spec.ts
+src/realtime/realtime.messages.ts
+src/reservations/reservations.controller.ts

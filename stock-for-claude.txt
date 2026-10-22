@@ -1,0 +1,355 @@
+]633;E;{   for f in $(find src/inventory src/reservations -name "*.controller.ts" -o -name "*.dto.ts" 2>/dev/null)\x3b do     echo "=== $f ==="\x3b cat "$f"\x3b   done\x3b   echo "=== MOVEMENT/RESERVATION ENUMS ==="\x3b   grep -n -A12 -E "^enum (MovementType|ReservationStatus)" $(find prisma -name "*.prisma")\x3b } > stock-for-claude.txt;cdf92d3a-3d76-44d9-94fd-80d5dc78dd12]633;C=== src/inventory/inventory.controller.ts ===
+import { Roles } from '../auth/access.decorators';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Response } from 'express';
+import {
+  AdjustmentDto,
+  InventoryItemDto,
+  InventoryListDto,
+  ListInventoryDto,
+  ListMovementsDto,
+  MovementListDto,
+  ReorderLevelDto,
+  StockInDto,
+  StockMutationDto,
+  StockOutDto,
+  VariantIdParamDto,
+} from './inventory.dto';
+import { InventoryService } from './inventory.service';
+
+@ApiTags('Inventory')
+@Roles('INVENTORY_OPERATOR', 'ADMIN')
+@Controller('inventory')
+export class InventoryController {
+  constructor(private readonly service: InventoryService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'List stock per variant; status=low|out for alerts (operator/admin from Phase 13)',
+  })
+  @ApiOkResponse({ type: InventoryListDto })
+  list(@Query() query: ListInventoryDto) {
+    return this.service.list(query);
+  }
+
+  @Get('movements')
+  @ApiOperation({ summary: 'Movements ledger, newest first' })
+  @ApiOkResponse({ type: MovementListDto })
+  movements(@Query() query: ListMovementsDto) {
+    return this.service.listMovements(query);
+  }
+
+  @Get('variants/:variantId')
+  @ApiOperation({ summary: 'Stock of one variant' })
+  @ApiOkResponse({ type: InventoryItemDto })
+  @ApiNotFoundResponse()
+  get(@Param() params: VariantIdParamDto) {
+    return this.service.getItem(params.variantId);
+  }
+
+  @Post('variants/:variantId/stock-in')
+  @ApiOperation({
+    summary: 'Receive stock (200 + replayed=true when the idempotencyKey was already used)',
+  })
+  @ApiCreatedResponse({ type: StockMutationDto })
+  @ApiOkResponse({ type: StockMutationDto, description: 'Idempotent replay' })
+  @ApiBadRequestResponse()
+  @ApiNotFoundResponse()
+  async stockIn(
+    @Param() params: VariantIdParamDto,
+    @Body() dto: StockInDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.respond(res, await this.service.stockIn(params.variantId, dto));
+  }
+
+  @Post('variants/:variantId/stock-out')
+  @ApiOperation({ summary: 'Remove stock (reason required). Cannot take reserved units.' })
+  @ApiCreatedResponse({ type: StockMutationDto })
+  @ApiOkResponse({ type: StockMutationDto, description: 'Idempotent replay' })
+  @ApiBadRequestResponse()
+  @ApiNotFoundResponse()
+  @ApiConflictResponse({ description: 'Not enough available stock' })
+  async stockOut(
+    @Param() params: VariantIdParamDto,
+    @Body() dto: StockOutDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.respond(res, await this.service.stockOut(params.variantId, dto));
+  }
+
+  @Post('variants/:variantId/adjustments')
+  @ApiOperation({ summary: 'Signed correction (stocktake, damage, loss). Reason required.' })
+  @ApiCreatedResponse({ type: StockMutationDto })
+  @ApiOkResponse({ type: StockMutationDto, description: 'Idempotent replay' })
+  @ApiBadRequestResponse()
+  @ApiNotFoundResponse()
+  @ApiConflictResponse({ description: 'Would drop on-hand below reserved units' })
+  async adjust(
+    @Param() params: VariantIdParamDto,
+    @Body() dto: AdjustmentDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.respond(res, await this.service.adjust(params.variantId, dto));
+  }
+
+  @Patch('variants/:variantId/reorder-level')
+  @ApiOperation({ summary: 'Set the low-stock threshold (not a stock movement)' })
+  @ApiOkResponse({ type: InventoryItemDto })
+  @ApiBadRequestResponse()
+  @ApiNotFoundResponse()
+  setReorderLevel(@Param() params: VariantIdParamDto, @Body() dto: ReorderLevelDto) {
+    return this.service.setReorderLevel(params.variantId, dto.reorderLevel);
+  }
+
+  private respond<T extends { replayed: boolean }>(res: Response, result: T): T {
+    if (result.replayed) res.status(200);
+    return result;
+  }
+}
+=== src/inventory/inventory.dto.ts ===
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+export const MOVEMENT_TYPES = [
+  'STOCK_IN',
+  'STOCK_OUT',
+  'ADJUSTMENT',
+  'RESERVE',
+  'RELEASE',
+  'SALE',
+  'RETURN',
+] as const;
+
+const quantity = z.number().int().min(1).max(1_000_000);
+const reason = z.string().trim().min(3).max(500);
+const idempotencyKey = z
+  .string()
+  .trim()
+  .min(8)
+  .max(100)
+  .optional()
+  .describe(
+    'Replaying the same key for the same variant and operation returns the original result',
+  );
+
+// No .default() in write DTOs (see Phase 4 note)
+const stockInSchema = z.object({
+  quantity,
+  reason: reason.optional(),
+  idempotencyKey,
+});
+
+const stockOutSchema = z.object({ quantity, reason, idempotencyKey });
+
+const adjustmentSchema = z.object({
+  delta: z
+    .number()
+    .int()
+    .min(-1_000_000)
+    .max(1_000_000)
+    .refine((d) => d !== 0, 'delta must not be 0')
+    .describe('Signed change to on-hand units (use a negative number for shrinkage)'),
+  reason,
+  idempotencyKey,
+});
+
+const reorderLevelSchema = z.object({ reorderLevel: z.number().int().min(0).max(100_000) });
+
+const listInventorySchema = z.object({
+  q: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Matches SKU, variant name or product name'),
+  status: z
+    .enum(['all', 'low', 'out'])
+    .default('all')
+    .describe('low = available <= reorder level (includes out)'),
+  includeInactive: z.enum(['true', 'false']).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const listMovementsSchema = z
+  .object({
+    variantId: z.uuid().optional(),
+    type: z.enum(MOVEMENT_TYPES).optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((q) => !q.from || !q.to || new Date(q.from) <= new Date(q.to), {
+    message: 'from must be <= to',
+    path: ['to'],
+  });
+
+const meta = z.object({
+  page: z.number().int(),
+  pageSize: z.number().int(),
+  total: z.number().int(),
+  totalPages: z.number().int(),
+});
+
+const snapshot = z.object({
+  variantId: z.uuid(),
+  onHand: z.number().int(),
+  reserved: z.number().int(),
+  available: z.number().int().describe('onHand - reserved'),
+  reorderLevel: z.number().int(),
+});
+
+const item = snapshot.extend({
+  sku: z.string(),
+  variantName: z.string(),
+  productName: z.string(),
+  isActive: z.boolean(),
+  priceMinor: z.number().int(),
+  lowStock: z.boolean(),
+});
+
+const movement = z.object({
+  id: z.uuid(),
+  variantId: z.uuid(),
+  sku: z.string(),
+  type: z.enum(MOVEMENT_TYPES),
+  deltaOnHand: z.number().int(),
+  deltaReserved: z.number().int(),
+  reason: z.string().nullable(),
+  referenceType: z.string().nullable(),
+  referenceId: z.string().nullable(),
+  actorId: z.uuid().nullable(),
+  createdAt: z.string(),
+});
+
+export class VariantIdParamDto extends createZodDto(z.object({ variantId: z.uuid() })) {}
+export class StockInDto extends createZodDto(stockInSchema) {}
+export class StockOutDto extends createZodDto(stockOutSchema) {}
+export class AdjustmentDto extends createZodDto(adjustmentSchema) {}
+export class ReorderLevelDto extends createZodDto(reorderLevelSchema) {}
+export class ListInventoryDto extends createZodDto(listInventorySchema) {}
+export class ListMovementsDto extends createZodDto(listMovementsSchema) {}
+
+export class InventoryItemDto extends createZodDto(item) {}
+export class InventoryListDto extends createZodDto(z.object({ items: z.array(item), meta })) {}
+export class MovementListDto extends createZodDto(z.object({ items: z.array(movement), meta })) {}
+export class StockMutationDto extends createZodDto(
+  z.object({ replayed: z.boolean(), movement, stock: snapshot }),
+) {}
+=== src/reservations/reservations.controller.ts ===
+import { Roles } from '../auth/access.decorators';
+import { Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ExpireResultDto, ListReservationsDto, ReservationListDto } from './reservations.dto';
+import { ReservationsService } from './reservations.service';
+
+@ApiTags('Reservations')
+@Roles('INVENTORY_OPERATOR', 'ADMIN')
+@Controller('reservations')
+export class ReservationsController {
+  constructor(private readonly service: ReservationsService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'List reservations, newest first (admin / inventory operator from Phase 13)',
+  })
+  @ApiOkResponse({ type: ReservationListDto })
+  @ApiBadRequestResponse({ description: 'Invalid filter' })
+  list(@Query() query: ListReservationsDto) {
+    return this.service.list(query);
+  }
+
+  @Post('expire-due')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Expire all due reservations now (admin; the scheduled job takes over in Phase 15)',
+  })
+  @ApiOkResponse({ type: ExpireResultDto })
+  expireDue() {
+    return this.service.expireDue();
+  }
+}
+=== src/reservations/reservations.dto.ts ===
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+export const RESERVATION_STATUSES = ['ACTIVE', 'CONSUMED', 'RELEASED', 'EXPIRED'] as const;
+
+const listReservationsSchema = z.object({
+  status: z.enum(RESERVATION_STATUSES).optional(),
+  orderId: z.uuid().optional(),
+  variantId: z.uuid().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const reservation = z.object({
+  id: z.uuid(),
+  orderId: z.uuid(),
+  variantId: z.uuid(),
+  sku: z.string(),
+  quantity: z.number().int(),
+  status: z.enum(RESERVATION_STATUSES),
+  expiresAt: z.string(),
+  resolvedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+const reservationList = z.object({
+  items: z.array(reservation),
+  meta: z.object({
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    total: z.number().int(),
+    totalPages: z.number().int(),
+  }),
+});
+
+const expireResult = z.object({
+  expiredOrders: z.number().int().describe('Orders whose reservations were expired by this run'),
+  failedOrders: z.number().int().describe('Orders that failed and will be retried on the next run'),
+});
+
+export class ListReservationsDto extends createZodDto(listReservationsSchema) {}
+export class ReservationListDto extends createZodDto(reservationList) {}
+export class ExpireResultDto extends createZodDto(expireResult) {}
+=== MOVEMENT/RESERVATION ENUMS ===
+29:enum ReservationStatus {
+30-  ACTIVE
+31-  CONSUMED
+32-  RELEASED
+33-  EXPIRED
+34-}
+35-
+36-enum PaymentStatus {
+37-  PENDING
+38-  PAID
+39-  FAILED
+40-  EXPIRED
+41-  REFUNDED
+--
+45:enum MovementType {
+46-  STOCK_IN
+47-  STOCK_OUT
+48-  ADJUSTMENT
+49-  RESERVE
+50-  RELEASE
+51-  SALE
+52-  RETURN
+53-}
+54-
+55-enum OutboxStatus {
+56-  PENDING
+57-  PUBLISHED

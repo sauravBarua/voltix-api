@@ -1,0 +1,303 @@
+]633;E;{   for f in $(find src/audit src/auth -name "*users-admin*" -o -name "*audit*.controller.ts" -o -name "*audit*.dto.ts" 2>/dev/null | sort -u)\x3b do     echo "=== $f ==="\x3b cat "$f"\x3b   done\x3b   echo "=== PRISMA ==="\x3b   awk '/^model (User|AuditLog)[A-Za-z]* \\{/ {p=1} p {print} /^\\}/ {p=0}' $(find prisma -name "*.prisma")\x3b   grep -n -A6 -E "^enum Role" $(find prisma -name "*.prisma")\x3b } > users-audit-for-claude.txt;c4d88c47-c9d5-4bd1-ae92-9da4a1254f36]633;C=== src/audit/audit.controller.ts ===
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/access.decorators';
+import { AuditListDto, ListAuditDto } from './audit.dto';
+import { AuditService } from './audit.service';
+
+@ApiTags('Admin audit')
+@Roles('ADMIN')
+@Controller('admin/audit-logs')
+export class AuditController {
+  constructor(private readonly service: AuditService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Audit trail, newest first (append-only)' })
+  @ApiOkResponse({ type: AuditListDto })
+  @ApiBadRequestResponse({ description: 'Invalid filter' })
+  list(@Query() query: ListAuditDto) {
+    return this.service.list(query);
+  }
+}
+=== src/audit/audit.dto.ts ===
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+const listAuditSchema = z
+  .object({
+    actorId: z.uuid().optional(),
+    action: z.string().trim().min(1).max(200).optional().describe('Exact action, e.g. auth.login'),
+    entityType: z.string().trim().min(1).max(100).optional(),
+    entityId: z.string().trim().min(1).max(100).optional(),
+    outcome: z.enum(['SUCCESS', 'FAILURE']).optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((q) => !q.from || !q.to || new Date(q.from) <= new Date(q.to), {
+    message: 'from must be <= to',
+    path: ['to'],
+  });
+
+const entry = z.object({
+  id: z.uuid(),
+  actorId: z.uuid().nullable(),
+  actorEmail: z.string().nullable(),
+  actorRole: z.string().nullable(),
+  action: z.string(),
+  entityType: z.string().nullable(),
+  entityId: z.string().nullable(),
+  outcome: z.string(),
+  ip: z.string().nullable(),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string(),
+});
+
+export class ListAuditDto extends createZodDto(listAuditSchema) {}
+export class AuditListDto extends createZodDto(
+  z.object({
+    items: z.array(entry),
+    meta: z.object({
+      page: z.number().int(),
+      pageSize: z.number().int(),
+      total: z.number().int(),
+      totalPages: z.number().int(),
+    }),
+  }),
+) {}
+=== src/auth/users-admin.controller.ts ===
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Request } from 'express';
+import { CurrentUser } from '../common/auth/current-user.decorator';
+import { IdParamDto } from '../common/schemas';
+import { Roles, SkipAudit } from './access.decorators';
+import { UserDto } from './auth.dto';
+import type { AuthUser } from './auth.types';
+import { CreateUserDto, ListUsersDto, UpdateUserDto, UserListDto } from './users.dto';
+import { UsersAdminService } from './users-admin.service';
+
+@ApiTags('Admin users')
+@Roles('ADMIN')
+@SkipAudit() // the service writes a richer entry (role before and after) in the same transaction
+@Controller('admin/users')
+export class UsersAdminController {
+  constructor(private readonly service: UsersAdminService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List users' })
+  @ApiOkResponse({ type: UserListDto })
+  list(@Query() query: ListUsersDto) {
+    return this.service.list(query);
+  }
+
+  @Post()
+  @ApiOperation({
+    summary: 'Create a user with any role (use it to create inventory operators and admins)',
+  })
+  @ApiCreatedResponse({ type: UserDto })
+  @ApiBadRequestResponse()
+  @ApiConflictResponse({ description: 'Email already registered' })
+  create(@Body() dto: CreateUserDto, @CurrentUser() actor: AuthUser, @Req() req: Request) {
+    return this.service.create(dto, actor, req.ip);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Change a role or deactivate a user (deactivation ends all their sessions)',
+  })
+  @ApiOkResponse({ type: UserDto })
+  @ApiNotFoundResponse()
+  @ApiConflictResponse({ description: 'Own account, or the last active administrator' })
+  update(
+    @Param() params: IdParamDto,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() actor: AuthUser,
+    @Req() req: Request,
+  ) {
+    return this.service.update(params.id, dto, actor, req.ip);
+  }
+}
+=== src/auth/users-admin.service.ts ===
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { AuditService } from '../audit/audit.service';
+import type { Prisma } from '../generated/prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import type { AuthUser } from './auth.types';
+import { hashPassword } from './password';
+import type { CreateUserDto, ListUsersDto, UpdateUserDto } from './users.dto';
+import { toUserView, userSelect } from './user.mapper';
+
+@Injectable()
+export class UsersAdminService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
+
+  async list(q: ListUsersDto) {
+    const where: Prisma.UserWhereInput = {
+      role: q.role,
+      isActive: q.isActive === undefined ? undefined : q.isActive === 'true',
+      OR: q.q
+        ? [
+            { email: { contains: q.q, mode: 'insensitive' } },
+            { name: { contains: q.q, mode: 'insensitive' } },
+          ]
+        : undefined,
+    };
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        select: userSelect,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+      }),
+    ]);
+    return {
+      items: rows.map(toUserView),
+      meta: {
+        page: q.page,
+        pageSize: q.pageSize,
+        total,
+        totalPages: Math.ceil(total / q.pageSize),
+      },
+    };
+  }
+
+  async create(dto: CreateUserDto, actor: AuthUser, ip?: string) {
+    const passwordHash = await hashPassword(dto.password);
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { email: dto.email, name: dto.name, role: dto.role, passwordHash },
+        select: userSelect,
+      }); // duplicate email -> unique violation -> 409
+      await this.audit.recordIn(tx, {
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        action: 'user.create',
+        entityType: 'user',
+        entityId: user.id,
+        ip,
+        metadata: { role: user.role },
+      });
+      return toUserView(user);
+    });
+  }
+
+  async update(id: string, dto: UpdateUserDto, actor: AuthUser, ip?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize concurrent admin changes: two admins demoting each other cannot both succeed
+      await tx.$queryRaw`SELECT id FROM users WHERE role = 'ADMIN' AND is_active = true ORDER BY id FOR UPDATE`;
+
+      const current = await tx.user.findUnique({
+        where: { id: actor.id },
+        select: { role: true, isActive: true },
+      });
+      if (current?.role !== 'ADMIN' || !current.isActive) {
+        throw new ForbiddenException('Your role cannot access this resource');
+      }
+      const target = await tx.user.findUnique({
+        where: { id },
+        select: { id: true, role: true, isActive: true },
+      });
+      if (!target) throw new NotFoundException('User not found');
+
+      const changesRole = dto.role !== undefined && dto.role !== target.role;
+      if (id === actor.id && (changesRole || dto.isActive === false)) {
+        throw new ConflictException('You cannot change your own role or deactivate yourself');
+      }
+      const losesAdmin =
+        target.role === 'ADMIN' && target.isActive && (changesRole || dto.isActive === false);
+      if (losesAdmin && (await tx.user.count({ where: { role: 'ADMIN', isActive: true } })) <= 1) {
+        throw new ConflictException('At least one active administrator is required');
+      }
+
+      const updated = await tx.user.update({
+        where: { id },
+        data: { role: dto.role, isActive: dto.isActive },
+        select: userSelect,
+      });
+      if (dto.isActive === false) {
+        await tx.refreshToken.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      await this.audit.recordIn(tx, {
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        action: 'user.update',
+        entityType: 'user',
+        entityId: id,
+        ip,
+        metadata: {
+          from: { role: target.role, isActive: target.isActive },
+          to: { role: updated.role, isActive: updated.isActive },
+        },
+      });
+      return toUserView(updated);
+    });
+  }
+}
+=== PRISMA ===
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  email        String   @unique
+  name         String
+  role         Role     @default(CUSTOMER)
+  passwordHash String?  @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  cart          Cart?
+  orders        Order[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+model AuditLog {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  actorEmail String?  @map("actor_email")
+  actorRole  String?  @map("actor_role")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  outcome    String   @default("SUCCESS")
+  ip         String?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+13:enum Role {
+14-  CUSTOMER
+15-  INVENTORY_OPERATOR
+16-  ADMIN
+17-}
+18-
+19-enum OrderStatus {

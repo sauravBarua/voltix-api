@@ -10,9 +10,19 @@ export class AdminProductsService {
 
   async list(query: AdminProductsQueryDto) {
     const { q, categoryId, status, page, pageSize } = query;
+
+    let categoryIds: string[] | undefined;
+    if (categoryId) {
+      const children = await this.prisma.category.findMany({
+        where: { parentId: categoryId },
+        select: { id: true },
+      });
+      categoryIds = [categoryId, ...children.map((c) => c.id)];
+    }
+
     const where: Prisma.ProductWhereInput = {
       ...(status && { isActive: status === 'active' }),
-      ...(categoryId && { categoryId }),
+      ...(categoryIds && { categoryId: { in: categoryIds } }),
       ...(q && {
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
