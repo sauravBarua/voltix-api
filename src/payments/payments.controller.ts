@@ -13,7 +13,7 @@ import { CurrentUserId } from '../common/auth/current-user-id.decorator';
 import { IdParamDto } from '../common/schemas';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { InvoicesService } from './invoices.service';
-import { PayResultDto } from './payments.dto';
+import { PayResultDto, SyncPaymentResultDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
 @ApiTags('Payments')
@@ -40,6 +40,20 @@ export class PaymentsController {
   @ApiBadGatewayResponse({ description: 'Stripe returned an error' })
   pay(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
     return this.service.createCheckoutSession(userId, params.id);
+  }
+
+  @Post(':id/sync-payment')
+  @HttpCode(200)
+  @RateLimit('strict')
+  @ApiOperation({
+    summary:
+      'Ask Stripe about an unpaid order and confirm it if paid (fallback when the webhook is late). Idempotent.',
+  })
+  @ApiOkResponse({ type: SyncPaymentResultDto })
+  @ApiNotFoundResponse({ description: 'Order not found (or not yours)' })
+  @ApiBadGatewayResponse({ description: 'Stripe returned an error' })
+  syncPayment(@CurrentUserId() userId: string, @Param() params: IdParamDto) {
+    return this.service.syncPayment(userId, params.id);
   }
 
   @Get(':id/invoice')

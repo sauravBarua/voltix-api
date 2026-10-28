@@ -36,6 +36,14 @@ const refundResult = z.object({
   note: z.string(),
 });
 
+const syncResult = z.object({
+  orderId: z.uuid(),
+  orderNumber: z.string(),
+  status: z.string().describe('Order status after the sync'),
+  paymentStatus: z.enum(['paid', 'unpaid']).describe('What Stripe says about the Checkout Session'),
+});
+
 export class RefundDto extends createZodDto(refundSchema) {}
 export class PayResultDto extends createZodDto(payResult) {}
 export class RefundResultDto extends createZodDto(refundResult) {}
+export class SyncPaymentResultDto extends createZodDto(syncResult) {}

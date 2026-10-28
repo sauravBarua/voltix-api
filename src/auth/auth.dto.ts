@@ -17,6 +17,7 @@ const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: passwordSchema,
 });
+const updateProfileSchema = z.object({ name: z.string().trim().min(2).max(100) });
 
 export const userViewSchema = z.object({
   id: z.uuid(),
@@ -39,5 +40,6 @@ export class RegisterDto extends createZodDto(registerSchema) {}
 export class LoginDto extends createZodDto(loginSchema) {}
 export class RefreshDto extends createZodDto(refreshSchema) {}
 export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
+export class UpdateProfileDto extends createZodDto(updateProfileSchema) {}
 export class UserDto extends createZodDto(userViewSchema) {}
 export class AuthTokensDto extends createZodDto(tokensSchema) {}

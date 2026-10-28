@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  HUSKY: '0' # never install git hooks in CI
+
+jobs:
+  quality:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # reads the version from the packageManager field
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The Prisma client is generated code (gitignored): every later step needs it
+      - run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test:cov
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-coverage
+          path: coverage
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration:
+    name: Integration tests (Testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      # Starts throwaway Postgres, Redis and RabbitMQ, migrates, seeds, runs every suite serially
+      - run: pnpm test:int
+        env:
+          NODE_ENV: test
+
+  docker:
+    name: Docker build and smoke test
+    needs: [quality, integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          tags: voltix-api:local
+          load: true
+          cache-from: type=gha,scope=runtime
+          cache-to: type=gha,scope=runtime,mode=max
+
+      - name: Build the tools image (migrations)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: tools
+          tags: voltix-api-tools:local
+          load: true
+          cache-from: type=gha,scope=tools
+          cache-to: type=gha,scope=tools,mode=max
+
+      - name: Smoke test with Docker Compose
+        run: |
+          # Throwaway values: this stack lives for one minute on the runner
+          cat > .env <<EOF
+          JWT_ACCESS_SECRET=ci-smoke-secret-$(openssl rand -hex 24)
+          STRIPE_SECRET_KEY=sk_test_dummy
+          STRIPE_WEBHOOK_SECRET=whsec_dummy
+          CLOUDINARY_CLOUD_NAME=dummy
+          CLOUDINARY_API_KEY=dummy
+          CLOUDINARY_API_SECRET=dummy
+          EOF
+          # Images are already built above: do not rebuild
+          docker compose --profile app up -d --no-build
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:3000/health/ready; then echo; echo "API is ready"; exit 0; fi
+            sleep 3
+          done
+          echo "API did not become ready"
+          docker compose --profile app ps
+          docker compose --profile app logs --no-color migrate api worker
+          exit 1
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose --profile app logs --no-color --tail 200
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose --profile app down -v

@@ -7,6 +7,7 @@ import { AccessGuard } from './auth/access.guard';
 import { AuthModule } from './auth/auth.module';
 import { CartModule } from './cart/cart.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { ContactModule } from './contact/contact.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { validateEnv } from './config/env';
@@ -41,6 +42,7 @@ import { ReservationsModule } from './reservations/reservations.module';
     RealtimeModule,
     JobsAdminModule,
     DashboardModule,
+    ContactModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

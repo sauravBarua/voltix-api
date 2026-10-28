@@ -10,7 +10,7 @@ import { AuditService } from '../audit/audit.service';
 import type { Env } from '../config/env';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import type { ChangePasswordDto, LoginDto, RegisterDto } from './auth.dto';
+import type { ChangePasswordDto, LoginDto, RegisterDto, UpdateProfileDto } from './auth.dto';
 import { hashPassword, verifyPassword } from './password';
 import { TokensService } from './tokens.service';
 import { type UserRow, toUserView, userSelect } from './user.mapper';
@@ -163,6 +163,15 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: userSelect });
     if (!user) throw new NotFoundException('User not found');
+    return toUserView(user);
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { name: dto.name },
+      select: userSelect,
+    });
     return toUserView(user);
   }
 
